@@ -1,526 +1,494 @@
-/*     */ package com.thevoxelbox.voyage;
-/*     */ 
-/*     */ import java.util.ArrayList;
-/*     */ import java.util.Map.Entry;
-/*     */ import java.util.TreeMap;
-/*     */ import java.util.TreeSet;
-/*     */ import net.minecraft.server.DamageSource;
-/*     */ import net.minecraft.server.EntityBlaze;
-/*     */ import net.minecraft.server.EntityPlayer;
-/*     */ import net.minecraft.server.NBTTagCompound;
-/*     */ import net.minecraft.server.NBTTagDouble;
-/*     */ import net.minecraft.server.NBTTagList;
-/*     */ import net.minecraft.server.NPC;
-/*     */ import org.bukkit.ChatColor;
-/*     */ import org.bukkit.Location;
-/*     */ import org.bukkit.craftbukkit.entity.CraftPlayer;
-/*     */ import org.bukkit.entity.Player;
-/*     */ import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
-/*     */ import org.bukkit.inventory.PlayerInventory;
-/*     */ 
-/*     */ 
-/*     */ 
-/*     */ 
-/*     */ 
-/*     */ 
-/*     */ 
-/*     */ public class PrzlabsBlaze
-/*     */   extends EntityBlaze
-/*     */   implements PrzlabsEntity, NPC
-/*     */ {
-/*  31 */   private ArrayList<BeziPoint> path = new ArrayList();
-/*  32 */   private BeziPoint[] currentCurve = new BeziPoint[0];
-/*  33 */   private int currentPoint = 1;
-/*  34 */   private double currT = 1.0D;
-/*  35 */   private double stepT = 0.1D;
-/*     */   private Player focused;
-/*     */   private String focusName;
-/*     */   private BeziPoint next;
-/*  39 */   private double lastDist = 9999999.0D;
-/*  40 */   private boolean motherEntity = false;
-/*  41 */   private boolean pathEnd = false;
-/*  42 */   private boolean controlled = false;
-/*     */   private double motherx;
-/*     */   private double mothery;
-/*     */   private double motherz;
-/*     */   private PrzlabsCrystal[] crystalPath;
-/*  47 */   private double distance = 2.5D;
-/*  48 */   private int lastSlot = 0;
-/*  49 */   private boolean demo = false;
-/*  50 */   private boolean sendDemos = false;
-/*     */   
-/*     */   public PrzlabsBlaze(net.minecraft.server.World world) {
-/*  53 */     super(world);
-/*     */   }
-/*     */   
-/*     */   public PrzlabsBlaze(net.minecraft.server.World world, boolean mother) {
-/*  57 */     super(world);
-/*  58 */     this.motherEntity = mother;
-/*  59 */     if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-/*  60 */       ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-/*     */     } else {
-/*  62 */       VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
-/*  63 */       ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   public PrzlabsBlaze(net.minecraft.server.World world, boolean mother, Location idle) {
-/*  68 */     super(world);
-/*  69 */     this.motherEntity = mother;
-/*  70 */     setPositionRotation(idle.getX(), idle.getY(), idle.getZ(), idle.getYaw() + 180.0F, idle.getPitch());
-/*  71 */     this.motherx = idle.getX();
-/*  72 */     this.mothery = idle.getY();
-/*  73 */     this.motherz = idle.getZ();
-/*  74 */     if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-/*  75 */       ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-/*     */     } else {
-/*  77 */       VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
-/*  78 */       ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   public PrzlabsBlaze(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, Player pilot) {
-/*  83 */     super(world);
-/*  84 */     if ((flightPath == null) || (flightPath.size() < 2))
-/*     */     {
-/*  86 */       die();
-/*  87 */       return;
-/*     */     }
-/*  89 */     if (VoxelVoyage.flying.contains(pilot.getName())) {
-/*  90 */       die();
-/*  91 */       return;
-/*     */     }
-/*  93 */     this.focused = pilot;
-/*  94 */     this.focusName = this.focused.getName();
-/*  95 */     VoxelVoyage.flying.add(this.focusName);
-/*  96 */     this.path = flightPath;
-/*  97 */     setPosition(((BeziPoint)this.path.get(0)).x, ((BeziPoint)this.path.get(0)).y, ((BeziPoint)this.path.get(0)).z);
-/*  98 */     this.currentCurve = new BeziPoint[] { (BeziPoint)this.path.get(0), (BeziPoint)this.path.get(1) };
-/*  99 */     getCC((BeziPoint)this.path.get(0));
-/* 100 */     getStep();
-/* 101 */     this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
-/* 102 */     this.yaw = getCorrectYaw(this.next.x, this.next.z);
-/*     */   }
-/*     */   
-/*     */   public PrzlabsBlaze(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, boolean demomode) {
-/* 106 */     super(world);
-/* 107 */     if ((flightPath == null) || (flightPath.size() < 2))
-/*     */     {
-/* 109 */       die();
-/* 110 */       return;
-/*     */     }
-/* 112 */     this.demo = demomode;
-/* 113 */     this.path = flightPath;
-/* 114 */     setPosition(((BeziPoint)this.path.get(0)).x, ((BeziPoint)this.path.get(0)).y, ((BeziPoint)this.path.get(0)).z);
-/* 115 */     this.currentCurve = new BeziPoint[] { (BeziPoint)this.path.get(0), (BeziPoint)this.path.get(1) };
-/* 116 */     getCC((BeziPoint)this.path.get(0));
-/* 117 */     getStep();
-/* 118 */     this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
-/* 119 */     this.yaw = getCorrectYaw(this.next.x, this.next.z);
-/*     */   }
-/*     */   
-/*     */   public org.bukkit.entity.Entity getBukkitEntity()
-/*     */   {
-/* 124 */     if (this.bukkitEntity == null) {
-/* 125 */       this.bukkitEntity = new PrzlabsLivingEntity(this.world.getServer(), this);
-/*     */     }
-/* 127 */     return this.bukkitEntity;
-/*     */   }
-/*     */   
-/*     */   private float getCorrectYaw(double targetx, double targetz) {
-/* 131 */     if (this.locZ > targetz)
-/* 132 */       return (float)-Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz)));
-/* 133 */     if (this.locZ < targetz) {
-/* 134 */       return (float)-Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz))) + 180.0F;
-/*     */     }
-/* 136 */     return this.yaw;
-/*     */   }
-/*     */   
-/*     */   private void getStep()
-/*     */   {
-/* 141 */     if (this.currentCurve.length > 2) {
-/* 142 */       double cdist = 0.0D;
-/* 143 */       BeziPoint lastbezi = this.currentCurve[0];
-/*     */       
-/* 145 */       for (double tt = 0.0D; tt < 1.0D; tt += 0.01D) {
-/* 146 */         BeziPoint newbezi = BeziCurve.getBezi(tt, this.currentCurve);
-/* 147 */         cdist += Math.pow(Math.pow(newbezi.x - lastbezi.x, 2.0D) + Math.pow(newbezi.y - lastbezi.y, 2.0D) + Math.pow(newbezi.z - lastbezi.z, 2.0D), 0.5D);
-/* 148 */         lastbezi = newbezi;
-/*     */       }
-/* 150 */       this.stepT = (0.75D / cdist);
-/* 151 */       this.currT = this.stepT;
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   private boolean switchPoint() {
-/* 156 */     double currDist = Math.pow(Math.pow(this.locX - this.currentCurve[1].x, 2.0D) + Math.pow(this.locY - this.currentCurve[1].y, 2.0D) + Math.pow(this.locZ - this.currentCurve[1].z, 2.0D), 0.5D);
-/* 157 */     if (currDist <= this.lastDist) {
-/* 158 */       this.lastDist = currDist;
-/* 159 */       return true;
-/*     */     }
-/* 161 */     this.lastDist = 9999999.0D;
-/* 162 */     return false;
-/*     */   }
-/*     */   
-/*     */   private void getCC(BeziPoint currentbp)
-/*     */   {
-/* 167 */     if (this.currentPoint + 1 < this.path.size()) {
-/* 168 */       this.currentCurve = new BeziPoint[] { currentbp, (BeziPoint)this.path.get(this.currentPoint), (BeziPoint)this.path.get(this.currentPoint + 1) };
-/*     */     } else
-/* 170 */       this.pathEnd = true;
-/*     */   }
-/*     */   
-/* 173 */   private long lastDemo = 0L;
-/*     */   long lastSaved;
-/*     */   
-/*     */   public void d() {
-/* 177 */     if ((this.focused != null) && (!this.focused.isOnline())) {
-/* 178 */       this.focused = null;
-/*     */     }
-/* 180 */     if ((this.motherEntity) && (!this.demo)) {
-/* 181 */       if ((this.sendDemos) && 
-/* 182 */         (System.currentTimeMillis() - this.lastDemo > 4000L)) {
-/* 183 */         this.lastDemo = System.currentTimeMillis();
-/* 184 */         PrzlabsBlaze dragon = new PrzlabsBlaze(this.world, this.path, true);
-/* 185 */         this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
-/*     */       }
-/*     */       
-/* 188 */       if (this.controlled) {
-/* 189 */         changeDistance(this.focused);
-/* 190 */         Location player_loc = this.focused.getLocation();
-/* 191 */         double rot_x = (player_loc.getYaw() + 90.0F) % 360.0F;
-/* 192 */         double rot_y = player_loc.getPitch() * -1.0F;
-/* 193 */         double rot_ycos = Math.cos(Math.toRadians(rot_y));
-/* 194 */         double rot_ysin = Math.sin(Math.toRadians(rot_y));
-/* 195 */         double rot_xcos = Math.cos(Math.toRadians(rot_x));
-/* 196 */         double rot_xsin = Math.sin(Math.toRadians(rot_x));
-/*     */         
-/* 198 */         double h_length = this.distance * rot_ycos;
-/* 199 */         double y_offset = this.distance * rot_ysin;
-/* 200 */         double x_offset = h_length * rot_xcos;
-/* 201 */         double z_offset = h_length * rot_xsin;
-/*     */         
-/* 203 */         double target_x = x_offset + player_loc.getX();
-/* 204 */         double target_y = y_offset + player_loc.getY() + 1.65D;
-/* 205 */         double target_z = z_offset + player_loc.getZ();
-/* 206 */         setPosition(target_x, target_y, target_z);
-/* 207 */         this.yaw = getCorrectYaw(player_loc.getX(), player_loc.getZ());
-/* 208 */         this.motherx = target_x;
-/* 209 */         this.mothery = target_y;
-/* 210 */         this.motherz = target_z;
-/* 211 */         this.lastSaved = 0L;
-/*     */       } else {
-/* 213 */         setPosition(this.motherx, this.mothery, this.motherz);
-/*     */       }
-/*     */     }
-/* 216 */     else if (((this.focused != null) && (this.focused.isOnline())) || (this.demo)) {
-/* 217 */       if ((this.passenger == null) && (!this.demo)) {
-/* 218 */         ((CraftPlayer)this.focused).getHandle().setPassengerOf(this);
-/*     */       }
-/* 220 */       if ((this.path != null) && (!this.path.isEmpty()) && (this.path.size() > 1)) {
-/* 221 */         setPosition(this.next.x, this.next.y, this.next.z);
-/* 222 */         if ((switchPoint()) || (this.pathEnd)) {
-/* 223 */           this.next = BeziCurve.getBezi(this.currT, this.currentCurve);
-/* 224 */           this.currT += this.stepT;
-/* 225 */           if (this.currT > 1.0D) {
-/* 226 */             if (this.focusName != null) {
-/* 227 */               VoxelVoyage.flying.remove(this.focusName);
-/*     */             }
-/*     */             
-/* 230 */             die();
-/*     */           }
-/*     */         } else {
-/* 233 */           getCC(this.next);
-/* 234 */           if (!this.pathEnd) {
-/* 235 */             getStep();
-/* 236 */             this.currentPoint += 1;
-/* 237 */             if (this.currentPoint == this.path.size()) {
-/* 238 */               this.currentPoint = 1;
-/*     */             }
-/*     */           } else {
-/* 241 */             this.next = BeziCurve.getBezi(this.currT, this.currentCurve);
-/* 242 */             this.currT += this.stepT;
-/*     */           }
-/*     */         }
-/* 245 */         this.yaw = getCorrectYaw(this.next.x, this.next.z);
-/*     */       } else {
-/* 247 */         if (this.focusName != null) {
-/* 248 */           VoxelVoyage.flying.remove(this.focusName);
-/*     */         }
-/*     */         
-/* 251 */         die();
-/*     */       }
-/*     */     } else {
-/* 254 */       if (this.focusName != null) {
-/* 255 */         VoxelVoyage.flying.remove(this.focusName);
-/*     */       }
-/*     */       
-/* 258 */       die();
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   private void changeDistance(Player user)
-/*     */   {
-/* 264 */     int currentSlot = user.getInventory().getHeldItemSlot();
-/* 265 */     if (this.lastSlot == 0) {
-/* 266 */       if ((currentSlot != 0) && (currentSlot > 5)) {
-/* 267 */         this.distance += 1.0D;
-/* 268 */       } else if ((currentSlot != 0) && (currentSlot < 6)) {
-/* 269 */         this.distance -= 1.0D;
-/*     */       }
-/* 271 */     } else if (this.lastSlot == 8) {
-/* 272 */       if ((currentSlot != 8) && (currentSlot < 5)) {
-/* 273 */         this.distance -= 1.0D;
-/* 274 */       } else if ((currentSlot != 8) && (currentSlot > 4)) {
-/* 275 */         this.distance += 1.0D;
-/*     */       }
-/*     */     }
-/* 278 */     else if (currentSlot < this.lastSlot) {
-/* 279 */       this.distance += 1.0D;
-/* 280 */     } else if (currentSlot > this.lastSlot) {
-/* 281 */       this.distance -= 1.0D;
-/*     */     }
-/*     */     
-/* 284 */     this.lastSlot = currentSlot;
-/*     */   }
-/*     */   
-/*     */ 
-/*     */   public void a(NBTTagCompound in)
-/*     */   {
-/* 290 */     this.motherEntity = in.getBoolean("isMother");
-/* 291 */     if (this.motherEntity) {
-/* 292 */       if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-/* 293 */         ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-/*     */       } else {
-/* 295 */         VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
-/* 296 */         ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-/*     */       }
-/* 298 */       NBTTagList mpos = in.getList("Mother");
-/*     */       
-/* 300 */       if ((mpos != null) && (mpos.size() != 0)) {
-/* 301 */         this.motherx = ((NBTTagDouble)mpos.get(0)).data;
-/* 302 */         this.mothery = ((NBTTagDouble)mpos.get(1)).data;
-/* 303 */         this.motherz = ((NBTTagDouble)mpos.get(2)).data;
-/*     */       } else {
-/* 305 */         this.motherx = this.locX;
-/* 306 */         this.mothery = this.locY;
-/* 307 */         this.motherz = this.locZ;
-/*     */       }
-/*     */       
-/* 310 */       NBTTagList lpath = in.getList("Path");
-/* 311 */       if ((lpath == null) || (lpath.size() == 0)) {
-/* 312 */         return;
-/*     */       }
-/* 314 */       for (int count = 0; count < lpath.size(); count++) {
-/* 315 */         NBTTagList dbl = (NBTTagList)lpath.get(count);
-/* 316 */         this.path.add(new BeziPoint(((NBTTagDouble)dbl.get(0)).data, ((NBTTagDouble)dbl.get(1)).data, ((NBTTagDouble)dbl.get(2)).data));
-/*     */       }
-/* 318 */       if (this.next == null) {
-/* 319 */         this.next = ((BeziPoint)this.path.get(0));
-/*     */       }
-/*     */       
-/* 322 */       if (this.path.size() > 2) {
-/* 323 */         getCC(this.next);
-/* 324 */         getStep();
-/* 325 */         setPosition(((BeziPoint)this.path.get(0)).x, ((BeziPoint)this.path.get(0)).y, ((BeziPoint)this.path.get(0)).z);
-/* 326 */         this.lastDist = 9999999.0D;
-/*     */       }
-/*     */     }
-/*     */     else {
-/* 330 */       die();
-/*     */     }
-/*     */   }
-/*     */   
-/*     */ 
-/*     */ 
-/*     */   public void b(NBTTagCompound out)
-/*     */   {
-/* 338 */     out.setBoolean("isMother", this.motherEntity);
-/* 339 */     if (this.motherEntity) {
-/* 340 */       out.set("Mother", a(new double[] { this.motherx, this.mothery, this.motherz }));
-/* 341 */       if ((this.path == null) || (this.path.isEmpty())) {
-/* 342 */         return;
-/*     */       }
-/* 344 */       NBTTagList spath = new NBTTagList();
-/* 345 */       for (BeziPoint bezi : this.path) {
-/* 346 */         NBTTagList dbl = new NBTTagList();
-/* 347 */         dbl.add(new NBTTagDouble((String)null, bezi.x));
-/* 348 */         dbl.add(new NBTTagDouble((String)null, bezi.y));
-/* 349 */         dbl.add(new NBTTagDouble((String)null, bezi.z));
-/* 350 */         spath.add(dbl);
-/*     */       }
-/* 352 */       out.set("Path", spath);
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   public boolean isAlive()
-/*     */   {
-/* 358 */     return true;
-/*     */   }
-/*     */   
-/*     */   public int getMaxHealth()
-/*     */   {
-/* 363 */     return 9999999;
-/*     */   }
-/*     */   
-/*     */   public void rightClick(Player user, int slot)
-/*     */   {
-/* 368 */     if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
-/* 369 */       this.focused = user;
-/*     */     }
-/* 371 */     if (slot == 1) {
-/* 372 */       this.controlled = (!this.controlled);
-/* 373 */     } else if (slot == 20) {
-/* 374 */       addPoint(user);
-/* 375 */     } else if (slot == 21) {
-/* 376 */       die();
-/* 377 */     } else if (slot == 3) {
-/* 378 */       voyage(user);
-/* 379 */     } else if (slot == 4) {
-/* 380 */       drawPath();
-/* 381 */     } else if (slot == 5) {
-/* 382 */       cleanPath();
-/* 383 */     } else if (slot == 6) {
-/* 384 */       toggleDemo(user);
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   public void toggleDemo(Player user) {
-/* 389 */     this.sendDemos = (!this.sendDemos);
-/* 390 */     user.sendMessage(ChatColor.GOLD + "Demo mode turned " + ChatColor.AQUA + (this.sendDemos ? "on" : "off"));
-/*     */   }
-/*     */   
-/*     */   public void toggleControll(Player user) {
-/* 394 */     if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
-/* 395 */       this.focused = user;
-/*     */     }
-/* 397 */     this.controlled = (!this.controlled);
-/* 398 */     this.distance = 2.5D;
-/* 399 */     this.lastSlot = user.getInventory().getHeldItemSlot();
-/*     */   }
-/*     */   
-/*     */   public void voyage(Player user) {
-/* 403 */     PrzlabsBlaze dragon = new PrzlabsBlaze(this.world, this.path, user);
-/* 404 */     this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
-/*     */   }
-/*     */   
-/*     */   public void addPoint(Player user) {
-/* 408 */     if (this.path == null) {
-/* 409 */       this.path = new ArrayList();
-/* 410 */       this.currentCurve = new BeziPoint[1];
-/*     */     }
-/* 412 */     this.path.add(new BeziPoint(user.getLocation()));
-/*     */     
-/* 414 */     this.currentPoint = 1;
-/*     */     
-/* 416 */     if (this.next == null) {
-/* 417 */       this.next = ((BeziPoint)this.path.get(0));
-/*     */     }
-/*     */     
-/* 420 */     if (this.path.size() > 2) {
-/* 421 */       getCC(this.next);
-/* 422 */       getStep();
-/* 423 */       setPosition(((BeziPoint)this.path.get(0)).x, ((BeziPoint)this.path.get(0)).y, ((BeziPoint)this.path.get(0)).z);
-/* 424 */       this.lastDist = 9999999.0D;
-/*     */     }
-/* 426 */     this.lastSaved = 0L;
-/*     */   }
-/*     */   
-/*     */   public void drawPath() {
-/* 430 */     if (this.crystalPath == null) {
-/* 431 */       this.crystalPath = new PrzlabsCrystal[this.path.size()];
-/*     */     }
-/* 433 */     else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
-/* 434 */       for (PrzlabsCrystal plc : this.crystalPath) {
-/* 435 */         if (plc != null)
-/*     */         {
-/*     */ 
-/* 438 */           plc.die(); }
-/*     */       }
-/* 440 */       this.crystalPath = new PrzlabsCrystal[this.path.size()];
-/*     */     }
-/*     */     
-/* 443 */     if ((this.path == null) || (this.path.isEmpty())) {
-/* 444 */       return;
-/*     */     }
-/* 446 */     for (int count = 0; count < this.path.size(); count++) {
-/* 447 */       PrzlabsCrystal crystal = new PrzlabsCrystal(this.world, (BeziPoint)this.path.get(count), count, this);
-/* 448 */       if (this.world.addEntity(crystal, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
-/* 449 */         this.crystalPath[count] = crystal;
-/*     */       }
-/*     */     }
-/*     */   }
-/*     */   
-/*     */   public void cleanPath() {
-/* 455 */     if (this.crystalPath == null) {
-/* 456 */       this.crystalPath = new PrzlabsCrystal[this.path.size()];
-/*     */     }
-/* 458 */     else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
-/* 459 */       for (PrzlabsCrystal plc : this.crystalPath) {
-/* 460 */         if (plc != null)
-/*     */         {
-/*     */ 
-/* 463 */           plc.die(); }
-/*     */       }
-/* 465 */       this.crystalPath = new PrzlabsCrystal[this.path.size()];
-/*     */     }
-/*     */   }
-/*     */   
-/*     */ 
-/*     */   public void setCrystal(PrzlabsCrystal crystal, int index)
-/*     */   {
-/* 472 */     this.crystalPath[index] = crystal;
-/*     */   }
-/*     */   
-/*     */   public void die()
-/*     */   {
-/* 477 */     if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-/* 478 */       ((TreeMap)VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).remove(Integer.valueOf(this.id));
-/*     */     }
-/* 480 */     if (VoxelVoyage.selected.containsValue(this)) {
-/* 481 */       String pname = null;
-/* 482 */       for (Map.Entry<String, net.minecraft.server.Entity> entr : VoxelVoyage.selected.entrySet()) {
-/* 483 */         if (((net.minecraft.server.Entity)entr.getValue()).id == this.id) {
-/* 484 */           pname = (String)entr.getKey();
-/*     */         }
-/*     */       }
-/* 487 */       VoxelVoyage.selected.remove(pname);
-/*     */     }
-/* 489 */     if ((!this.motherEntity) && (this.focusName != null)) {
-/* 490 */       VoxelVoyage.flying.remove(this.focusName);
-/*     */     }
-/* 492 */     super.die();
-/*     */   }
-/*     */   
-/*     */   public int getEntID()
-/*     */   {
-/* 497 */     return this.id;
-/*     */   }
-/*     */   
-/*     */   public boolean damageEntity(DamageSource damagesource, int i)
-/*     */   {
-/* 502 */     return false;
-/*     */   }
-/*     */   
-/*     */   public int getAirTicks()
-/*     */   {
-/* 507 */     return this.motherEntity ? 12349 : 12350;
-/*     */   }
-/*     */   
-/*     */   public void b(net.minecraft.server.Entity entity, int index)
-/*     */   {
-/* 512 */     if ((entity instanceof EntityPlayer)) {
-/* 513 */       EntityPlayer play = (EntityPlayer)entity;
-/* 514 */       org.bukkit.entity.Entity bplay = play.getBukkitEntity();
-/* 515 */       if ((bplay instanceof Player)) {
-/* 516 */         rightClick((Player)bplay, index);
-/*     */       }
-/*     */     }
-/*     */   }
-/*     */ }
+package com.thevoxelbox.voyage;
+
+import java.util.ArrayList;
+import java.util.Map.Entry;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import net.minecraft.server.DamageSource;
+import net.minecraft.server.EntityBlaze;
+import net.minecraft.server.EntityPlayer;
+import net.minecraft.server.NBTTagCompound;
+import net.minecraft.server.NBTTagDouble;
+import net.minecraft.server.NBTTagList;
+import net.minecraft.server.NPC;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
+import org.bukkit.inventory.PlayerInventory;
 
 
-/* Location:              C:\intellij\VoxelVoyage\VoxelVoyage.jar!\com\thevoxelbox\voyage\PrzlabsBlaze.class
- * Java compiler version: 6 (50.0)
- * JD-Core Version:       0.7.1
- */
+public class PrzlabsBlaze
+        extends EntityBlaze
+        implements PrzlabsEntity, NPC {
+    private ArrayList<BeziPoint> path = new ArrayList();
+    private BeziPoint[] currentCurve = new BeziPoint[0];
+    private int currentPoint = 1;
+    private double currT = 1.0D;
+    private double stepT = 0.1D;
+    private Player focused;
+    private String focusName;
+    private BeziPoint next;
+    private double lastDist = 9999999.0D;
+    private boolean motherEntity = false;
+    private boolean pathEnd = false;
+    private boolean controlled = false;
+    private double motherx;
+    private double mothery;
+    private double motherz;
+    private PrzlabsCrystal[] crystalPath;
+    private double distance = 2.5D;
+    private int lastSlot = 0;
+    private boolean demo = false;
+    private boolean sendDemos = false;
+
+    public PrzlabsBlaze(net.minecraft.server.World world) {
+        super(world);
+    }
+
+    public PrzlabsBlaze(net.minecraft.server.World world, boolean mother) {
+        super(world);
+        this.motherEntity = mother;
+        if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
+            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+        } else {
+            VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
+            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+        }
+    }
+
+    public PrzlabsBlaze(net.minecraft.server.World world, boolean mother, Location idle) {
+        super(world);
+        this.motherEntity = mother;
+        setPositionRotation(idle.getX(), idle.getY(), idle.getZ(), idle.getYaw() + 180.0F, idle.getPitch());
+        this.motherx = idle.getX();
+        this.mothery = idle.getY();
+        this.motherz = idle.getZ();
+        if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
+            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+        } else {
+            VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
+            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+        }
+    }
+
+    public PrzlabsBlaze(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, Player pilot) {
+        super(world);
+        if ((flightPath == null) || (flightPath.size() < 2)) {
+            die();
+            return;
+        }
+        if (VoxelVoyage.flying.contains(pilot.getName())) {
+            die();
+            return;
+        }
+        this.focused = pilot;
+        this.focusName = this.focused.getName();
+        VoxelVoyage.flying.add(this.focusName);
+        this.path = flightPath;
+        setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
+        this.currentCurve = new BeziPoint[]{(BeziPoint) this.path.get(0), (BeziPoint) this.path.get(1)};
+        getCC((BeziPoint) this.path.get(0));
+        getStep();
+        this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
+        this.yaw = getCorrectYaw(this.next.x, this.next.z);
+    }
+
+    public PrzlabsBlaze(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, boolean demomode) {
+        super(world);
+        if ((flightPath == null) || (flightPath.size() < 2)) {
+            die();
+            return;
+        }
+        this.demo = demomode;
+        this.path = flightPath;
+        setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
+        this.currentCurve = new BeziPoint[]{(BeziPoint) this.path.get(0), (BeziPoint) this.path.get(1)};
+        getCC((BeziPoint) this.path.get(0));
+        getStep();
+        this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
+        this.yaw = getCorrectYaw(this.next.x, this.next.z);
+    }
+
+    public org.bukkit.entity.Entity getBukkitEntity() {
+        if (this.bukkitEntity == null) {
+            this.bukkitEntity = new PrzlabsLivingEntity(this.world.getServer(), this);
+        }
+        return this.bukkitEntity;
+    }
+
+    private float getCorrectYaw(double targetx, double targetz) {
+        if (this.locZ > targetz)
+            return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz)));
+        if (this.locZ < targetz) {
+            return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz))) + 180.0F;
+        }
+        return this.yaw;
+    }
+
+    private void getStep() {
+        if (this.currentCurve.length > 2) {
+            double cdist = 0.0D;
+            BeziPoint lastbezi = this.currentCurve[0];
+
+            for (double tt = 0.0D; tt < 1.0D; tt += 0.01D) {
+                BeziPoint newbezi = BeziCurve.getBezi(tt, this.currentCurve);
+                cdist += Math.pow(Math.pow(newbezi.x - lastbezi.x, 2.0D) + Math.pow(newbezi.y - lastbezi.y, 2.0D) + Math.pow(newbezi.z - lastbezi.z, 2.0D), 0.5D);
+                lastbezi = newbezi;
+            }
+            this.stepT = (0.75D / cdist);
+            this.currT = this.stepT;
+        }
+    }
+
+    private boolean switchPoint() {
+        double currDist = Math.pow(Math.pow(this.locX - this.currentCurve[1].x, 2.0D) + Math.pow(this.locY - this.currentCurve[1].y, 2.0D) + Math.pow(this.locZ - this.currentCurve[1].z, 2.0D), 0.5D);
+        if (currDist <= this.lastDist) {
+            this.lastDist = currDist;
+            return true;
+        }
+        this.lastDist = 9999999.0D;
+        return false;
+    }
+
+    private void getCC(BeziPoint currentbp) {
+        if (this.currentPoint + 1 < this.path.size()) {
+            this.currentCurve = new BeziPoint[]{currentbp, (BeziPoint) this.path.get(this.currentPoint), (BeziPoint) this.path.get(this.currentPoint + 1)};
+        } else
+            this.pathEnd = true;
+    }
+
+    private long lastDemo = 0L;
+    long lastSaved;
+
+    public void d() {
+        if ((this.focused != null) && (!this.focused.isOnline())) {
+            this.focused = null;
+        }
+        if ((this.motherEntity) && (!this.demo)) {
+            if ((this.sendDemos) &&
+                    (System.currentTimeMillis() - this.lastDemo > 4000L)) {
+                this.lastDemo = System.currentTimeMillis();
+                PrzlabsBlaze dragon = new PrzlabsBlaze(this.world, this.path, true);
+                this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
+            }
+
+            if (this.controlled) {
+                changeDistance(this.focused);
+                Location player_loc = this.focused.getLocation();
+                double rot_x = (player_loc.getYaw() + 90.0F) % 360.0F;
+                double rot_y = player_loc.getPitch() * -1.0F;
+                double rot_ycos = Math.cos(Math.toRadians(rot_y));
+                double rot_ysin = Math.sin(Math.toRadians(rot_y));
+                double rot_xcos = Math.cos(Math.toRadians(rot_x));
+                double rot_xsin = Math.sin(Math.toRadians(rot_x));
+
+                double h_length = this.distance * rot_ycos;
+                double y_offset = this.distance * rot_ysin;
+                double x_offset = h_length * rot_xcos;
+                double z_offset = h_length * rot_xsin;
+
+                double target_x = x_offset + player_loc.getX();
+                double target_y = y_offset + player_loc.getY() + 1.65D;
+                double target_z = z_offset + player_loc.getZ();
+                setPosition(target_x, target_y, target_z);
+                this.yaw = getCorrectYaw(player_loc.getX(), player_loc.getZ());
+                this.motherx = target_x;
+                this.mothery = target_y;
+                this.motherz = target_z;
+                this.lastSaved = 0L;
+            } else {
+                setPosition(this.motherx, this.mothery, this.motherz);
+            }
+        } else if (((this.focused != null) && (this.focused.isOnline())) || (this.demo)) {
+            if ((this.passenger == null) && (!this.demo)) {
+                ((CraftPlayer) this.focused).getHandle().setPassengerOf(this);
+            }
+            if ((this.path != null) && (!this.path.isEmpty()) && (this.path.size() > 1)) {
+                setPosition(this.next.x, this.next.y, this.next.z);
+                if ((switchPoint()) || (this.pathEnd)) {
+                    this.next = BeziCurve.getBezi(this.currT, this.currentCurve);
+                    this.currT += this.stepT;
+                    if (this.currT > 1.0D) {
+                        if (this.focusName != null) {
+                            VoxelVoyage.flying.remove(this.focusName);
+                        }
+
+                        die();
+                    }
+                } else {
+                    getCC(this.next);
+                    if (!this.pathEnd) {
+                        getStep();
+                        this.currentPoint += 1;
+                        if (this.currentPoint == this.path.size()) {
+                            this.currentPoint = 1;
+                        }
+                    } else {
+                        this.next = BeziCurve.getBezi(this.currT, this.currentCurve);
+                        this.currT += this.stepT;
+                    }
+                }
+                this.yaw = getCorrectYaw(this.next.x, this.next.z);
+            } else {
+                if (this.focusName != null) {
+                    VoxelVoyage.flying.remove(this.focusName);
+                }
+
+                die();
+            }
+        } else {
+            if (this.focusName != null) {
+                VoxelVoyage.flying.remove(this.focusName);
+            }
+
+            die();
+        }
+    }
+
+    private void changeDistance(Player user) {
+        int currentSlot = user.getInventory().getHeldItemSlot();
+        if (this.lastSlot == 0) {
+            if ((currentSlot != 0) && (currentSlot > 5)) {
+                this.distance += 1.0D;
+            } else if ((currentSlot != 0) && (currentSlot < 6)) {
+                this.distance -= 1.0D;
+            }
+        } else if (this.lastSlot == 8) {
+            if ((currentSlot != 8) && (currentSlot < 5)) {
+                this.distance -= 1.0D;
+            } else if ((currentSlot != 8) && (currentSlot > 4)) {
+                this.distance += 1.0D;
+            }
+        } else if (currentSlot < this.lastSlot) {
+            this.distance += 1.0D;
+        } else if (currentSlot > this.lastSlot) {
+            this.distance -= 1.0D;
+        }
+
+        this.lastSlot = currentSlot;
+    }
+
+
+    public void a(NBTTagCompound in) {
+        this.motherEntity = in.getBoolean("isMother");
+        if (this.motherEntity) {
+            if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
+                ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+            } else {
+                VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
+                ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+            }
+            NBTTagList mpos = in.getList("Mother");
+
+            if ((mpos != null) && (mpos.size() != 0)) {
+                this.motherx = ((NBTTagDouble) mpos.get(0)).data;
+                this.mothery = ((NBTTagDouble) mpos.get(1)).data;
+                this.motherz = ((NBTTagDouble) mpos.get(2)).data;
+            } else {
+                this.motherx = this.locX;
+                this.mothery = this.locY;
+                this.motherz = this.locZ;
+            }
+
+            NBTTagList lpath = in.getList("Path");
+            if ((lpath == null) || (lpath.size() == 0)) {
+                return;
+            }
+            for (int count = 0; count < lpath.size(); count++) {
+                NBTTagList dbl = (NBTTagList) lpath.get(count);
+                this.path.add(new BeziPoint(((NBTTagDouble) dbl.get(0)).data, ((NBTTagDouble) dbl.get(1)).data, ((NBTTagDouble) dbl.get(2)).data));
+            }
+            if (this.next == null) {
+                this.next = ((BeziPoint) this.path.get(0));
+            }
+
+            if (this.path.size() > 2) {
+                getCC(this.next);
+                getStep();
+                setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
+                this.lastDist = 9999999.0D;
+            }
+        } else {
+            die();
+        }
+    }
+
+
+    public void b(NBTTagCompound out) {
+        out.setBoolean("isMother", this.motherEntity);
+        if (this.motherEntity) {
+            out.set("Mother", a(new double[]{this.motherx, this.mothery, this.motherz}));
+            if ((this.path == null) || (this.path.isEmpty())) {
+                return;
+            }
+            NBTTagList spath = new NBTTagList();
+            for (BeziPoint bezi : this.path) {
+                NBTTagList dbl = new NBTTagList();
+                dbl.add(new NBTTagDouble((String) null, bezi.x));
+                dbl.add(new NBTTagDouble((String) null, bezi.y));
+                dbl.add(new NBTTagDouble((String) null, bezi.z));
+                spath.add(dbl);
+            }
+            out.set("Path", spath);
+        }
+    }
+
+    public boolean isAlive() {
+        return true;
+    }
+
+    public int getMaxHealth() {
+        return 9999999;
+    }
+
+    public void rightClick(Player user, int slot) {
+        if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
+            this.focused = user;
+        }
+        if (slot == 1) {
+            this.controlled = (!this.controlled);
+        } else if (slot == 20) {
+            addPoint(user);
+        } else if (slot == 21) {
+            die();
+        } else if (slot == 3) {
+            voyage(user);
+        } else if (slot == 4) {
+            drawPath();
+        } else if (slot == 5) {
+            cleanPath();
+        } else if (slot == 6) {
+            toggleDemo(user);
+        }
+    }
+
+    public void toggleDemo(Player user) {
+        this.sendDemos = (!this.sendDemos);
+        user.sendMessage(ChatColor.GOLD + "Demo mode turned " + ChatColor.AQUA + (this.sendDemos ? "on" : "off"));
+    }
+
+    public void toggleControll(Player user) {
+        if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
+            this.focused = user;
+        }
+        this.controlled = (!this.controlled);
+        this.distance = 2.5D;
+        this.lastSlot = user.getInventory().getHeldItemSlot();
+    }
+
+    public void voyage(Player user) {
+        PrzlabsBlaze dragon = new PrzlabsBlaze(this.world, this.path, user);
+        this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
+    }
+
+    public void addPoint(Player user) {
+        if (this.path == null) {
+            this.path = new ArrayList();
+            this.currentCurve = new BeziPoint[1];
+        }
+        this.path.add(new BeziPoint(user.getLocation()));
+
+        this.currentPoint = 1;
+
+        if (this.next == null) {
+            this.next = ((BeziPoint) this.path.get(0));
+        }
+
+        if (this.path.size() > 2) {
+            getCC(this.next);
+            getStep();
+            setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
+            this.lastDist = 9999999.0D;
+        }
+        this.lastSaved = 0L;
+    }
+
+    public void drawPath() {
+        if (this.crystalPath == null) {
+            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+        } else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
+            for (PrzlabsCrystal plc : this.crystalPath) {
+                if (plc != null) {
+
+                    plc.die();
+                }
+            }
+            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+        }
+
+        if ((this.path == null) || (this.path.isEmpty())) {
+            return;
+        }
+        for (int count = 0; count < this.path.size(); count++) {
+            PrzlabsCrystal crystal = new PrzlabsCrystal(this.world, (BeziPoint) this.path.get(count), count, this);
+            if (this.world.addEntity(crystal, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
+                this.crystalPath[count] = crystal;
+            }
+        }
+    }
+
+    public void cleanPath() {
+        if (this.crystalPath == null) {
+            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+        } else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
+            for (PrzlabsCrystal plc : this.crystalPath) {
+                if (plc != null) {
+
+                    /* 463 */
+                    plc.die();
+                }
+            }
+            /* 465 */
+            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+        }
+    }
+
+
+    public void setCrystal(PrzlabsCrystal crystal, int index) {
+        this.crystalPath[index] = crystal;
+    }
+
+    public void die() {
+        if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
+            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).remove(Integer.valueOf(this.id));
+        }
+        if (VoxelVoyage.selected.containsValue(this)) {
+            String pname = null;
+            for (Map.Entry<String, net.minecraft.server.Entity> entr : VoxelVoyage.selected.entrySet()) {
+                if (((net.minecraft.server.Entity) entr.getValue()).id == this.id) {
+                    pname = (String) entr.getKey();
+                }
+            }
+            VoxelVoyage.selected.remove(pname);
+        }
+        if ((!this.motherEntity) && (this.focusName != null)) {
+            VoxelVoyage.flying.remove(this.focusName);
+        }
+        super.die();
+    }
+
+    public int getEntID() {
+        return this.id;
+    }
+
+    public boolean damageEntity(DamageSource damagesource, int i) {
+        return false;
+    }
+
+    public int getAirTicks() {
+        return this.motherEntity ? 12349 : 12350;
+    }
+
+    public void b(net.minecraft.server.Entity entity, int index) {
+        if ((entity instanceof EntityPlayer)) {
+            EntityPlayer play = (EntityPlayer) entity;
+            org.bukkit.entity.Entity bplay = play.getBukkitEntity();
+            if ((bplay instanceof Player)) {
+                rightClick((Player) bplay, index);
+            }
+        }
+    }
+}
