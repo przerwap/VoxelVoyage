@@ -1,13 +1,20 @@
-package com.thevoxelbox.voyage;
+package com.thevoxelbox.voyage.event;
 
+import com.thevoxelbox.voyage.PrzlabsEntity;
+import com.thevoxelbox.voyage.VoxelVoyage;
 import com.thevoxelbox.voyage.entities.Crystal;
-import org.bukkit.craftbukkit.v1_12_R1.entity.CraftEntity;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.CreatureSpawnEvent;
-import org.bukkit.event.entity.EntityListener;
 
+public class OnDragonSpawnEvent  {
 
-public class VEntity extends EntityListener {
-    public void onCreatureSpawn(CreatureSpawnEvent event) {
+    @EventHandler
+    public void onDragonSpawnEvent(CreatureSpawnEvent creatureSpawnEvent) {
+
+    }
+
+    /*
+     public void onCreatureSpawn(CreatureSpawnEvent event) {
         if ((((CraftEntity) event.getEntity()).getHandle() instanceof PrzlabsEntity)) {
             VoxelVoyage.log.info("[VoxelVoyage] Spawning VoyageEntity ID " + event.getEntity().getEntityId());
             event.setCancelled(false);
@@ -18,4 +25,5 @@ public class VEntity extends EntityListener {
             event.setCancelled(true);
         }
     }
+     */
 }

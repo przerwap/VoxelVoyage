@@ -1,28 +1,22 @@
-package com.thevoxelbox.voyage;
+package com.thevoxelbox.voyage.entities;
 
 import java.util.ArrayList;
-import java.util.Map.Entry;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
-import net.minecraft.server.DamageSource;
-import net.minecraft.server.EntityBlaze;
-import net.minecraft.server.EntityPlayer;
-import net.minecraft.server.NBTTagCompound;
-import net.minecraft.server.NBTTagDouble;
-import net.minecraft.server.NBTTagList;
-import net.minecraft.server.NPC;
+import com.thevoxelbox.voyage.*;
+import net.minecraft.server.v1_12_R1.EntityEnderDragon;
+import net.minecraft.server.v1_12_R1.EntityPlayer;
+import net.minecraft.server.v1_12_R1.NBTTagCompound;
+import net.minecraft.server.v1_12_R1.NBTTagDouble;
+import net.minecraft.server.v1_12_R1.NBTTagList;
+import net.minecraft.server.v1_12_R1.NPC;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
-import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
-import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
-import org.bukkit.inventory.PlayerInventory;
 
 
-public class PrzlabsBlaze
-        extends EntityBlaze
-        implements PrzlabsEntity, NPC {
+public class Dragon extends EntityEnderDragon implements PrzlabsEntity, NPC {
     private ArrayList<BeziPoint> path = new ArrayList();
     private BeziPoint[] currentCurve = new BeziPoint[0];
     private int currentPoint = 1;
@@ -38,19 +32,20 @@ public class PrzlabsBlaze
     private double motherx;
     private double mothery;
     private double motherz;
-    private PrzlabsCrystal[] crystalPath;
-    private double distance = 2.5D;
+    private Crystal[] crystalPath;
+    private double distance = 12.0D;
     private int lastSlot = 0;
     private boolean demo = false;
     private boolean sendDemos = false;
 
-    public PrzlabsBlaze(net.minecraft.server.World world) {
+    public Dragon(net.minecraft.server.v1_12_R1.World world) {
         super(world);
     }
 
-    public PrzlabsBlaze(net.minecraft.server.World world, boolean mother) {
+    public Dragon(net.minecraft.server.v1_12_R1.World world, boolean mother) {
         super(world);
         this.motherEntity = mother;
+
         if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
             ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
         } else {
@@ -59,7 +54,7 @@ public class PrzlabsBlaze
         }
     }
 
-    public PrzlabsBlaze(net.minecraft.server.World world, boolean mother, Location idle) {
+    public Dragon(net.minecraft.server.v1_12_R1.World world, boolean mother, Location idle) {
         super(world);
         this.motherEntity = mother;
         setPositionRotation(idle.getX(), idle.getY(), idle.getZ(), idle.getYaw() + 180.0F, idle.getPitch());
@@ -74,7 +69,7 @@ public class PrzlabsBlaze
         }
     }
 
-    public PrzlabsBlaze(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, Player pilot) {
+    public Dragon(net.minecraft.server.v1_12_R1.World world, ArrayList<BeziPoint> flightPath, Player pilot) {
         super(world);
         if ((flightPath == null) || (flightPath.size() < 2)) {
             die();
@@ -96,82 +91,125 @@ public class PrzlabsBlaze
         this.yaw = getCorrectYaw(this.next.x, this.next.z);
     }
 
-    public PrzlabsBlaze(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, boolean demomode) {
+    public Dragon(net.minecraft.server.v1_12_R1.World world, ArrayList<BeziPoint> flightPath, boolean demomode) {
+        /* 106 */
         super(world);
+        /* 107 */
         if ((flightPath == null) || (flightPath.size() < 2)) {
+            /* 109 */
             die();
+            /* 110 */
             return;
         }
+        /* 112 */
         this.demo = demomode;
+        /* 113 */
         this.path = flightPath;
+        /* 114 */
         setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
+        /* 115 */
         this.currentCurve = new BeziPoint[]{(BeziPoint) this.path.get(0), (BeziPoint) this.path.get(1)};
+        /* 116 */
         getCC((BeziPoint) this.path.get(0));
+        /* 117 */
         getStep();
+        /* 118 */
         this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
+        /* 119 */
         this.yaw = getCorrectYaw(this.next.x, this.next.z);
     }
 
     public org.bukkit.entity.Entity getBukkitEntity() {
+        /* 124 */
         if (this.bukkitEntity == null) {
+            /* 125 */
             this.bukkitEntity = new PrzlabsLivingEntity(this.world.getServer(), this);
         }
+        /* 127 */
         return this.bukkitEntity;
     }
 
     private float getCorrectYaw(double targetx, double targetz) {
+        /* 131 */
         if (this.locZ > targetz)
-            return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz)));
+            /* 132 */ return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz)));
+        /* 133 */
         if (this.locZ < targetz) {
+            /* 134 */
             return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz))) + 180.0F;
         }
+        /* 136 */
         return this.yaw;
     }
 
     private void getStep() {
+        /* 141 */
         if (this.currentCurve.length > 2) {
+            /* 142 */
             double cdist = 0.0D;
+            /* 143 */
             BeziPoint lastbezi = this.currentCurve[0];
 
+            /* 145 */
             for (double tt = 0.0D; tt < 1.0D; tt += 0.01D) {
+                /* 146 */
                 BeziPoint newbezi = BeziCurve.getBezi(tt, this.currentCurve);
+                /* 147 */
                 cdist += Math.pow(Math.pow(newbezi.x - lastbezi.x, 2.0D) + Math.pow(newbezi.y - lastbezi.y, 2.0D) + Math.pow(newbezi.z - lastbezi.z, 2.0D), 0.5D);
+                /* 148 */
                 lastbezi = newbezi;
             }
+            /* 150 */
             this.stepT = (0.75D / cdist);
+            /* 151 */
             this.currT = this.stepT;
         }
     }
 
     private boolean switchPoint() {
+        /* 156 */
         double currDist = Math.pow(Math.pow(this.locX - this.currentCurve[1].x, 2.0D) + Math.pow(this.locY - this.currentCurve[1].y, 2.0D) + Math.pow(this.locZ - this.currentCurve[1].z, 2.0D), 0.5D);
+        /* 157 */
         if (currDist <= this.lastDist) {
+            /* 158 */
             this.lastDist = currDist;
+            /* 159 */
             return true;
         }
+        /* 161 */
         this.lastDist = 9999999.0D;
+        /* 162 */
         return false;
     }
 
     private void getCC(BeziPoint currentbp) {
+        /* 167 */
         if (this.currentPoint + 1 < this.path.size()) {
+            /* 168 */
             this.currentCurve = new BeziPoint[]{currentbp, (BeziPoint) this.path.get(this.currentPoint), (BeziPoint) this.path.get(this.currentPoint + 1)};
         } else
-            this.pathEnd = true;
+            /* 170 */       this.pathEnd = true;
     }
 
-    private long lastDemo = 0L;
+    /* 173 */   private long lastDemo = 0L;
     long lastSaved;
 
     public void d() {
+        /* 177 */
         if ((this.focused != null) && (!this.focused.isOnline())) {
+            /* 178 */
             this.focused = null;
         }
+        /* 180 */
         if ((this.motherEntity) && (!this.demo)) {
+            /* 181 */
             if ((this.sendDemos) &&
-                    (System.currentTimeMillis() - this.lastDemo > 4000L)) {
+                    /* 182 */         (System.currentTimeMillis() - this.lastDemo > 4000L)) {
+                /* 183 */
                 this.lastDemo = System.currentTimeMillis();
-                PrzlabsBlaze dragon = new PrzlabsBlaze(this.world, this.path, true);
+                /* 184 */
+                Dragon dragon = new Dragon(this.world, this.path, true);
+                /* 185 */
                 this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
             }
 
@@ -372,19 +410,20 @@ public class PrzlabsBlaze
 
     public void toggleControll(Player user) {
         if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
+
             this.focused = user;
         }
         this.controlled = (!this.controlled);
-        this.distance = 2.5D;
-        this.lastSlot = user.getInventory().getHeldItemSlot();
+        this.distance = 12.0D;
     }
 
     public void voyage(Player user) {
-        PrzlabsBlaze dragon = new PrzlabsBlaze(this.world, this.path, user);
+        Dragon dragon = new Dragon(this.world, this.path, user);
         this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
     }
 
     public void addPoint(Player user) {
+
         if (this.path == null) {
             this.path = new ArrayList();
             this.currentCurve = new BeziPoint[1];
@@ -408,22 +447,22 @@ public class PrzlabsBlaze
 
     public void drawPath() {
         if (this.crystalPath == null) {
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+            this.crystalPath = new Crystal[this.path.size()];
         } else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
-            for (PrzlabsCrystal plc : this.crystalPath) {
+            for (Crystal plc : this.crystalPath) {
                 if (plc != null) {
 
                     plc.die();
                 }
             }
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+            this.crystalPath = new Crystal[this.path.size()];
         }
 
         if ((this.path == null) || (this.path.isEmpty())) {
             return;
         }
         for (int count = 0; count < this.path.size(); count++) {
-            PrzlabsCrystal crystal = new PrzlabsCrystal(this.world, (BeziPoint) this.path.get(count), count, this);
+            Crystal crystal = new Crystal(this.world, (BeziPoint) this.path.get(count), count, this);
             if (this.world.addEntity(crystal, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
                 this.crystalPath[count] = crystal;
             }
@@ -432,22 +471,19 @@ public class PrzlabsBlaze
 
     public void cleanPath() {
         if (this.crystalPath == null) {
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+            this.crystalPath = new Crystal[this.path.size()];
         } else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
-            for (PrzlabsCrystal plc : this.crystalPath) {
+            for (Crystal plc : this.crystalPath) {
                 if (plc != null) {
-
-                    /* 463 */
                     plc.die();
                 }
             }
-            /* 465 */
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
+            this.crystalPath = new Crystal[this.path.size()];
         }
     }
 
 
-    public void setCrystal(PrzlabsCrystal crystal, int index) {
+    public void setCrystal(Crystal crystal, int index) {
         this.crystalPath[index] = crystal;
     }
 
@@ -457,8 +493,8 @@ public class PrzlabsBlaze
         }
         if (VoxelVoyage.selected.containsValue(this)) {
             String pname = null;
-            for (Map.Entry<String, net.minecraft.server.Entity> entr : VoxelVoyage.selected.entrySet()) {
-                if (((net.minecraft.server.Entity) entr.getValue()).id == this.id) {
+            for (Map.Entry<String, net.minecraft.server.v1_12_R1.Entity> entr : VoxelVoyage.selected.entrySet()) {
+                if (((net.minecraft.server.v1_12_R1.Entity) entr.getValue()).id == this.id) {
                     pname = (String) entr.getKey();
                 }
             }
@@ -474,15 +510,11 @@ public class PrzlabsBlaze
         return this.id;
     }
 
-    public boolean damageEntity(DamageSource damagesource, int i) {
-        return false;
-    }
-
     public int getAirTicks() {
-        return this.motherEntity ? 12349 : 12350;
+        return this.motherEntity ? 12347 : 12348;
     }
 
-    public void b(net.minecraft.server.Entity entity, int index) {
+    public void b(net.minecraft.server.v1_12_R1.Entity entity, int index) {
         if ((entity instanceof EntityPlayer)) {
             EntityPlayer play = (EntityPlayer) entity;
             org.bukkit.entity.Entity bplay = play.getBukkitEntity();

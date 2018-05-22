@@ -3,12 +3,10 @@ package com.thevoxelbox.voyage;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Properties;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -16,23 +14,22 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import net.minecraft.server.Entity;
-import net.minecraft.server.EntityTypes;
-import net.minecraft.server.WorldServer;
+import com.thevoxelbox.voyage.entities.Blaze;
+import com.thevoxelbox.voyage.entities.Crystal;
+import com.thevoxelbox.voyage.entities.Dragon;
+import net.minecraft.server.v1_12_R1.Entity;
+import net.minecraft.server.v1_12_R1.EntityTypes;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.craftbukkit.CraftWorld;
-import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.craftbukkit.v1_12_R1.CraftWorld;
+import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Priority;
 import org.bukkit.event.Event.Type;
-import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.plugin.PluginDescriptionFile;
-import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class VoxelVoyage
@@ -45,28 +42,28 @@ public class VoxelVoyage
 
             addEntity.setAccessible(true);
 
-            addEntity.invoke(et, new Object[]{PrzlabsDragon.class, "PrzlabsDragon", Integer.valueOf(63)});
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity registered!");
+            addEntity.invoke(et, new Object[]{Dragon.class, "Dragon", Integer.valueOf(63)});
+            System.out.println("[VoxelVoyage] Dragon entity registered!");
 
-            addEntity.invoke(et, new Object[]{PrzlabsCrystal.class, "PrzlabsCrystal", Integer.valueOf(200)});
-            System.out.println("[VoxelVoyage] PrzlabsCrystal entity registered!");
+            addEntity.invoke(et, new Object[]{Crystal.class, "Crystal", Integer.valueOf(200)});
+            System.out.println("[VoxelVoyage] Crystal entity registered!");
 
-            addEntity.invoke(et, new Object[]{PrzlabsBlaze.class, "PrzlabsBlaze", Integer.valueOf(61)});
-            System.out.println("[VoxelVoyage] PrzlabsBlaze entity registered!");
+            addEntity.invoke(et, new Object[]{Blaze.class, "Blaze", Integer.valueOf(61)});
+            System.out.println("[VoxelVoyage] Blaze entity registered!");
         } catch (NoSuchMethodException ex) {
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
+            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
         } catch (SecurityException ex) {
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
+            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IllegalAccessException ex) {
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
+            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IllegalArgumentException ex) {
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
+            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
         } catch (InvocationTargetException ex) {
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
+            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -262,7 +259,7 @@ public class VoxelVoyage
             }
             if (isPermitted(p)) {
                 if (args[0].equalsIgnoreCase("create")) {
-                    PrzlabsDragon dragon = new PrzlabsDragon(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
+                    Dragon dragon = new Dragon(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
                     if (((CraftWorld) p.getWorld()).getHandle().addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
                         p.sendMessage(ChatColor.GREEN + "Done!");
                     } else {
@@ -271,7 +268,7 @@ public class VoxelVoyage
                     return true;
                 }
                 if (args[0].equalsIgnoreCase("createblaze")) {
-                    PrzlabsBlaze dragon = new PrzlabsBlaze(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
+                    Blaze dragon = new Blaze(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
                     if (((CraftWorld) p.getWorld()).getHandle().addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
                         p.sendMessage(ChatColor.GREEN + "Done!");
                     } else {
@@ -280,7 +277,7 @@ public class VoxelVoyage
                     return true;
                 }
                 if (args[0].equalsIgnoreCase("crystal")) {
-                    PrzlabsCrystal crystal = new PrzlabsCrystal(((CraftWorld) p.getWorld()).getHandle(), true);
+                    Crystal crystal = new Crystal(((CraftWorld) p.getWorld()).getHandle(), true);
                     crystal.setPosition(p.getLocation().getX(), p.getLocation().getY(), p.getLocation().getZ());
                     if (((CraftWorld) p.getWorld()).getHandle().addEntity(crystal, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
                         p.sendMessage(ChatColor.GREEN + "Done!");

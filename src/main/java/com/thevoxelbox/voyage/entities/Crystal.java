@@ -1,20 +1,20 @@
-package com.thevoxelbox.voyage;
+package com.thevoxelbox.voyage.entities;
 
-import net.minecraft.server.DamageSource;
-import net.minecraft.server.EntityEnderCrystal;
-import net.minecraft.server.EntityPlayer;
-import net.minecraft.server.MathHelper;
-import net.minecraft.server.NBTTagCompound;
-import net.minecraft.server.NetServerHandler;
-import net.minecraft.server.Packet34EntityTeleport;
-import net.minecraft.server.World;
+import com.thevoxelbox.voyage.PrzlabsEntity;
+import net.minecraft.server.v1_12_R1.DamageSource;
+import net.minecraft.server.v1_12_R1.EntityEnderCrystal;
+import net.minecraft.server.v1_12_R1.EntityPlayer;
+import net.minecraft.server.v1_12_R1.MathHelper;
+import net.minecraft.server.v1_12_R1.NBTTagCompound;
+import net.minecraft.server.v1_12_R1.NetServerHandler;
+import net.minecraft.server.v1_12_R1.Packet34EntityTeleport;
+import net.minecraft.server.v1_12_R1.World;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 
-public class PrzlabsCrystal
-        extends EntityEnderCrystal {
+public class Crystal extends EntityEnderCrystal {
     private Player focus;
     private BeziPoint bezi;
     private int index;
@@ -24,16 +24,16 @@ public class PrzlabsCrystal
     private int message = 0;
     private String[] messages = {"Hello, I'm decorative!", "Pretty cool huh?", "Bet you can't float like this!", "I'm cooler than you."};
 
-    public PrzlabsCrystal(World world) {
+    public Crystal(World world) {
         super(world);
     }
 
-    public PrzlabsCrystal(World world, boolean decor) {
+    public Crystal(World world, boolean decor) {
         super(world);
         this.decorative = decor;
     }
 
-    public PrzlabsCrystal(World world, BeziPoint point, int count, PrzlabsEntity mother) {
+    public Crystal(World world, BeziPoint point, int count, PrzlabsEntity mother) {
         super(world);
         this.bezi = point;
         this.index = count;
@@ -121,7 +121,7 @@ public class PrzlabsCrystal
         return this.decorative ? 12345 : 12346;
     }
 
-    public void b(net.minecraft.server.Entity entity, int index) {
+    public void b(net.minecraft.server.v1_12_R1.Entity entity, int index) {
         if ((entity instanceof EntityPlayer)) {
             EntityPlayer play = (EntityPlayer) entity;
             org.bukkit.entity.Entity bplay = play.getBukkitEntity();

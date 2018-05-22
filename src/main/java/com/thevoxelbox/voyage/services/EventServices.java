@@ -1,8 +1,8 @@
-package com.thevoxelbox.voyage;
+package com.thevoxelbox.voyage.services;
 
 import com.thevoxelbox.voyage.entities.BeziPoint;
 
-public class BeziCurve {
+public class EventServices {
     public static BeziPoint getBezi(double t, BeziPoint[] curve) {
         if (curve.length == 2) {
             if (t >= 1.0D) {
@@ -15,7 +15,6 @@ public class BeziCurve {
         for (int i = 1; i < curve.length; i++) {
             next[(i - 1)] = getBezi(t, new BeziPoint[]{curve[(i - 1)], curve[i]});
         }
-
         return getBezi(t, next);
     }
 }

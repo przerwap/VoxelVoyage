@@ -1,47 +1,32 @@
-package com.thevoxelbox.voyage;
+package com.thevoxelbox.voyage.event;
 
-import java.util.TreeSet;
-
+import com.thevoxelbox.voyage.VoxelVoyage;
+import com.thevoxelbox.voyage.services.VoyageServices;
 import net.minecraft.server.v1_12_R1.Entity;
+import net.minecraft.server.v1_12_R1.EnumHand;
 import org.bukkit.ChatColor;
 import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
-import org.bukkit.craftbukkit.v1_12_R1.entity.CraftEntity;
-import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerListener;
-import org.bukkit.inventory.ItemStack;
 
-
-public class VPlayer extends PlayerListener {
-    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
-        switch (((CraftEntity) event.getRightClicked()).getHandle().getAirTicks()) {
-            case 12345:
-                ((CraftEntity) event.getRightClicked()).getHandle().b(((CraftEntity) event.getPlayer()).getHandle(), 999999);
-                break;
-
-            case 12346:
-                if (!VoxelVoyage.isPermitted(event.getPlayer())) {
-                    event.getPlayer().sendMessage(ChatColor.GOLD + "You are not permitted to do this. Please input the password or login with an OP account.");
-                } else {
-                    /* 38 */
-                    ((CraftEntity) event.getRightClicked()).getHandle().b(((CraftEntity) event.getPlayer()).getHandle(), 999999);
-                }
-
-
-                break;
-        }
-
-    }
-
+public class InteractEvent {
+    @Inject
+    private VoyageServices voyageServices;
 
     public void onPlayerInteract(PlayerInteractEvent event) {
+           if (event.getAction().equals(Action.RIGHT_CLICK_AIR) || event.getAction().equals(Action.LEFT_CLICK_BLOCK)) {
+                if (null != event.getItem() && event.getItem().getType().equals(Material.BLAZE_ROD)) { //TODO CHANGE
+                    Player player = event.getPlayer();
+                    Entity closest =  voyageServices.getEntity();
+                }
+           }
+        }
+
+        ///Old
         if ((event.hasItem()) && ((event.getAction().equals(Action.RIGHT_CLICK_AIR)) || (event.getAction().equals(Action.RIGHT_CLICK_BLOCK)))) {
             if (event.getItem().getTypeId() == VoxelVoyage.voyageItem) {
                 Player p = event.getPlayer();
@@ -52,7 +37,8 @@ public class VPlayer extends PlayerListener {
                         p.sendMessage(ChatColor.RED + "You may only travel on one entity at a time!");
                         return;
                     }
-                    closest.b(((CraftPlayer) p).getHandle(), 3);
+                    //TODO Check if this is correct, original value is 3 however has changed due to 1.12
+                    closest.b(((CraftPlayer) p).getHandle(), EnumHand.MAIN_HAND);
                 } else {
                     p.sendMessage(ChatColor.RED + "Your offering is rejected.");
                 }
