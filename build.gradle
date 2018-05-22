@@ -17,5 +17,7 @@ repositories {
 dependencies {
     shadow group: 'org.bukkit', name: 'bukkit', version: '1.12.2-R0.1-SNAPSHOT'
     compile group: 'org.yaml', name: 'snakeyaml', version: '1.21'
-
+    compile files('../commonlibs/craftbukkit-1.12.2.jar')
+    compile group: 'commons-cli', name: 'commons-cli', version: '1.4'
+    compile group: 'com.google.inject', name: 'guice', version: '4.0'
 }
