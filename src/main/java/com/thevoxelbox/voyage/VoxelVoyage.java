@@ -1,22 +1,5 @@
 package com.thevoxelbox.voyage;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Iterator;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import com.thevoxelbox.voyage.entities.Blaze;
-import com.thevoxelbox.voyage.entities.Crystal;
-import com.thevoxelbox.voyage.entities.Dragon;
 import net.minecraft.server.v1_12_R1.Entity;
 import net.minecraft.server.v1_12_R1.EntityTypes;
 import org.bukkit.Bukkit;
@@ -25,46 +8,46 @@ import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.v1_12_R1.CraftWorld;
-import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Priority;
-import org.bukkit.event.Event.Type;
+import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class VoxelVoyage
-        extends JavaPlugin {
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Properties;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+public class VoxelVoyage extends JavaPlugin {
+
     static {
         try {
-            EntityTypes et = new EntityTypes();
+            EntityTypes et = EntityTypes.class.getConstructor().newInstance();
 
-            Method addEntity = EntityTypes.class.getDeclaredMethod("a", new Class[]{Class.class, String.class, Integer.TYPE});
+            Method addEntity = EntityTypes.class.getDeclaredMethod("a", int.class, String.class, Class.class, String.class);
 
             addEntity.setAccessible(true);
 
-            addEntity.invoke(et, new Object[]{Dragon.class, "Dragon", Integer.valueOf(63)});
-            System.out.println("[VoxelVoyage] Dragon entity registered!");
+            addEntity.invoke(et, 63, "przlabs_dragon", PrzlabsDragon.class, "PrzlabsDragon");
+            System.out.println("[VoxelVoyage] PrzlabsDragon entity registered!");
 
-            addEntity.invoke(et, new Object[]{Crystal.class, "Crystal", Integer.valueOf(200)});
-            System.out.println("[VoxelVoyage] Crystal entity registered!");
+            addEntity.invoke(et, 200, "przlabs_crystal", PrzlabsCrystal.class, "PrzlabsCrystal");
+            System.out.println("[VoxelVoyage] PrzlabsCrystal entity registered!");
 
-            addEntity.invoke(et, new Object[]{Blaze.class, "Blaze", Integer.valueOf(61)});
-            System.out.println("[VoxelVoyage] Blaze entity registered!");
-        } catch (NoSuchMethodException ex) {
-            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
+            addEntity.invoke(et, 200, "przlabs_red_balloon", PrzlabsRedBalloon.class, "PrzlabsRedBalloon");
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException | IllegalArgumentException ex) {
+            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (SecurityException ex) {
-            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IllegalArgumentException ex) {
-            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (InvocationTargetException ex) {
-            System.out.println("[VoxelVoyage] Dragon entity failed to register!");
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InstantiationException e) {
+            e.printStackTrace();
         }
     }
 
@@ -72,63 +55,70 @@ public class VoxelVoyage
     public static boolean SPAWN_ENTITIES = true;
     private VPlayer plistener = new VPlayer();
     private VEntity elistener = new VEntity();
-    public static TreeMap<UUID, TreeMap<Integer, Entity>> entities = new TreeMap();
-    public static TreeMap<String, Entity> selected = new TreeMap();
-    public static TreeSet<String> flying = new TreeSet();
-    public static TreeSet<String> permitted = new TreeSet();
+    public static TreeMap<UUID, TreeMap<UUID, Entity>> VOYAGE_ENTITIES = new TreeMap<>();
+    public static TreeMap<String, Entity> selected = new TreeMap<>();
+    public static TreeSet<String> flying = new TreeSet<>();
+    public static TreeSet<String> permitted = new TreeSet<>();
     public static String password;
     public static int voyageItem = 371;
+    public static boolean forceSpawning = false;
 
-    public static Entity getEntity(Player p) {
-
-        if (!entities.containsKey(p.getWorld().getUID())) {
+    public static Entity getNearestEntity(Player p) {
+        if (!VOYAGE_ENTITIES.containsKey(p.getWorld().getUID())) {
             p.sendMessage(ChatColor.RED + "No Voyage entity found.");
             return null;
         }
         Entity closest = null;
-        double range = 9.9999999E7D;
+        double range = 99999999;
 
         double bx = p.getLocation().getX();
         double by = p.getLocation().getY();
         double bz = p.getLocation().getZ();
 
-        for (Entity ent : ((TreeMap) entities.get(p.getWorld().getUID())).values()) {
+        for (Entity ent : VOYAGE_ENTITIES.get(p.getWorld().getUID()).values()) {
             switch (ent.getAirTicks()) {
                 case 12347:
                 case 12348:
                 case 12349:
                 case 12350:
-                    double erange = Math.pow(bx - ent.locX, 2.0D) + Math.pow(by - ent.locY, 2.0D) + Math.pow(bz - ent.locZ, 2.0D);
+                    double erange = Math.pow(bx - ent.locX, 2) + Math.pow(by - ent.locY, 2) + Math.pow(bz - ent.locZ, 2);
 
-                    if (!ent.dead) {
-
-
-                        if (erange < range) {
-                            range = erange;
-                            closest = ent;
-                        }
+                    if (ent.dead) {
+                        continue;
                     }
 
+                    if (erange < range) {
+                        range = erange;
+                        closest = ent;
+                    }
+                    break;
+
+                default:
                     break;
             }
-
         }
 
-        if ((closest != null) && (Math.pow(range, 0.5D) <= 40.0D)) {
+        if (closest != null && Math.pow(range, 0.5) <= 40) {
             return closest;
+        } else {
+            p.sendMessage(ChatColor.RED + "No Voyage entity found.");
+            return null;
         }
-        p.sendMessage(ChatColor.RED + "No Voyage entity found.");
-        return null;
     }
 
     public static boolean isPermitted(Player user) {
-        return user.isOp() ? true : permitted.contains(user.getName());
+        return (user.isOp() || permitted.contains(user.getName()));
     }
 
+    @Override
+    public void onDisable() {
+    }
 
+    @Override
     public void onEnable() {
-        for (Iterator i$ = Bukkit.getWorlds().iterator(); i$.hasNext(); ) {
-            wrld = (World) i$.next();
+        loadProps();
+
+        for (World wrld : Bukkit.getWorlds()) {
             CraftWorld cw = (CraftWorld) wrld;
             for (Object o : cw.getHandle().entityList) {
                 Entity ent = (Entity) o;
@@ -141,29 +131,53 @@ public class VoxelVoyage
                     case 12348:
                     case 12349:
                     case 12350:
-                        if (entities.containsKey(wrld.getUID())) {
-                            ((TreeMap) entities.get(wrld.getUID())).put(Integer.valueOf(ent.id), ent);
-                        } else {
-                            entities.put(wrld.getUID(), new TreeMap());
-                            ((TreeMap) entities.get(wrld.getUID())).put(Integer.valueOf(ent.id), ent);
+                        if (!VOYAGE_ENTITIES.containsKey(wrld.getUID())) {
+                            VOYAGE_ENTITIES.put(wrld.getUID(), new TreeMap<>());
                         }
 
+                        VOYAGE_ENTITIES.get(wrld.getUID()).put(ent.getUniqueID(), ent);
+                        break;
+
+                    default:
                         break;
                 }
-
             }
         }
 
-        World wrld;
-        loadProps();
-        Bukkit.getPluginManager().registerEvent(Event.Type.PLAYER_INTERACT_ENTITY, this.plistener, Event.Priority.Normal, this);
-        Bukkit.getPluginManager().registerEvent(Event.Type.PLAYER_INTERACT, this.plistener, Event.Priority.Normal, this);
-        Bukkit.getPluginManager().registerEvent(Event.Type.CREATURE_SPAWN, this.elistener, Event.Priority.Lowest, this);
+        Bukkit.getPluginManager().registerEvents(plistener, this);
+        Bukkit.getPluginManager().registerEvents(elistener, this);
+//        Bukkit.getPluginManager().registerEvent(Type.PLAYER_INTERACT_ENTITY, plistener, Priority.Normal, this);
+//        Bukkit.getPluginManager().registerEvent(Type.PLAYER_INTERACT, plistener, Priority.Normal, this);
+//        Bukkit.getPluginManager().registerEvent(Type.CREATURE_SPAWN, elistener, Priority.Lowest, this);
 
-        PluginDescriptionFile pdfFile = getDescription();
+/*        if (forceSpawning) {
+            try {
+                SimplePluginManager pm = (SimplePluginManager) Bukkit.getPluginManager();
+
+                Method getListen = SimplePluginManager.class.getDeclaredMethod("getEventListeners", new Class[]{Event.Type.class});
+
+                getListen.setAccessible(true);
+
+                Object sset = getListen.invoke(pm, new Object[]{Event.Type.CREATURE_SPAWN});
+                if (sset instanceof SortedSet) {
+                    SortedSet set = (SortedSet) sset;
+                    for (Object obj : set) {
+                        if (obj instanceof RegisteredListener) {
+                            RegisteredListener rl = (RegisteredListener) obj;
+                            log.info("[VoxelVoyage] Registered CREATURE_SPAWN listener: " + rl.getPlugin().getDescription().getFullName() + " priority: " + rl.getPriority().name());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, e);
+            }
+        }*/
+
+        PluginDescriptionFile pdfFile = this.getDescription();
         log.info(pdfFile.getName() + " version " + pdfFile.getVersion() + " is enabled! Let's fly.");
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     private void loadProps() {
         File f = new File("plugins/VoxelVoyage/voyage.properties");
         if (!f.exists()) {
@@ -182,12 +196,14 @@ public class VoxelVoyage
             Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
         }
         password = prop.getProperty("Password", null);
-        if ((password != null) && (password.equalsIgnoreCase("null"))) {
+        if (password != null && password.equalsIgnoreCase("null")) {
             password = null;
         }
         voyageItem = Integer.parseInt(prop.getProperty("VoyageItem", "371"));
+        forceSpawning = Boolean.parseBoolean(prop.getProperty("ForceSpawning"));
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     private void saveProps() {
         File f = new File("plugins/VoxelVoyage/voyage.properties");
         if (!f.exists()) {
@@ -199,8 +215,9 @@ public class VoxelVoyage
             }
         }
         Properties prop = new Properties();
-        prop.setProperty("Password", password == null ? "null" : password);
+        prop.setProperty("Password", (password == null ? "null" : password));
         prop.setProperty("VoyageItem", String.valueOf(voyageItem));
+        prop.setProperty("ForceSpawning", Boolean.toString(forceSpawning));
         try {
             prop.store(new PrintWriter(f), null);
         } catch (IOException ex) {
@@ -208,22 +225,26 @@ public class VoxelVoyage
         }
     }
 
+    @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        Player p = null;
+        Player p;
+
         if ((sender instanceof Player)) {
             p = (Player) sender;
         } else {
             sender.sendMessage("Only players permitted!");
+            return false;
         }
-        if (command.getName().equals("voyage")) {
+
+        if ((command.getName().equals("voyage"))) {
             if ((args == null) || (args.length == 0)) {
-                p.sendMessage(ChatColor.GREEN + "The available sub-commands are: /voyage [help] [?] [create] [ctrl] [select] [add] [editPath] [cleanpath] [demo] [kill] [createblaze]");
+                p.sendMessage(ChatColor.GREEN + "The available sub-commands are: /voyage [help] [?] [create] [ctrl] [ctrlrot] [ctrlpos] [select] [add] [editPath] [cleanpath] [demo] [kill] [createblaze] [loadbackup]");
                 return true;
             }
-            if ((args[0].equalsIgnoreCase("help")) || (args[0].equals("?"))) {
+            if (args[0].equalsIgnoreCase("help") || args[0].equals("?")) {
                 p.sendMessage(ChatColor.BLUE + "/voyage create - Creates a new Voyaging VoxelDragon.");
                 p.sendMessage(ChatColor.AQUA + "/voyage createblaze - Creates a new Voyaging VoxelBlaze.");
-                p.sendMessage(ChatColor.BLUE + "/voyage ctrl - Toggles the controll over a Voyager.");
+                p.sendMessage(ChatColor.BLUE + "/voyage ctrl | ctrlpos | ctrlrot - Toggles the controll over a Voyager.");
                 p.sendMessage(ChatColor.AQUA + "/voyage select - Selects a nearby Voyager.");
                 p.sendMessage(ChatColor.BLUE + "/voyage add - Adds a new point to your selected Voyager's movement path.");
                 p.sendMessage(ChatColor.AQUA + "/voyage editPath - This command allows the path for the selected Voyager to become visible as Crystals.");
@@ -232,9 +253,12 @@ public class VoxelVoyage
                 p.sendMessage(ChatColor.BLUE + "/voyage kill - Destroys the selected Voyager and its associated waypoints.");
                 p.sendMessage(ChatColor.AQUA + "/voyage password [pass] - Gives you access to Create Voyagers as a non-op user, or changes the password if you are OP.");
                 return true;
-            }
-            if (args[0].equalsIgnoreCase("password")) {
+            } else if (args[0].equalsIgnoreCase("password")) {
                 if (args.length < 2) {
+                    if (p.isOp()) {
+                        p.sendMessage(ChatColor.AQUA + "The password is set to: " + ChatColor.GREEN + password);
+                        return true;
+                    }
                     p.sendMessage(ChatColor.RED + "Invalid number of parameters!");
                     return true;
                 }
@@ -244,104 +268,128 @@ public class VoxelVoyage
                     permitted.clear();
                     saveProps();
                     return true;
-                }
-                if (password == null) {
-                    p.sendMessage("A password is not set.");
+                } else {
+                    if (password == null) {
+                        p.sendMessage("A password is not set.");
+                        return true;
+                    }
+                    if (args[1].equals(password)) {
+                        permitted.add(p.getName());
+                        p.sendMessage(ChatColor.GREEN + "Password accepted!");
+                    } else {
+                        p.sendMessage(ChatColor.DARK_GREEN + "Invalid password!");
+                    }
                     return true;
                 }
-                if (args[1].equals(password)) {
-                    permitted.add(p.getName());
-                    p.sendMessage(ChatColor.GREEN + "Password accepted!");
-                } else {
-                    p.sendMessage(ChatColor.DARK_GREEN + "Invalid password!");
-                }
-                return true;
             }
+
             if (isPermitted(p)) {
                 if (args[0].equalsIgnoreCase("create")) {
-                    Dragon dragon = new Dragon(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
-                    if (((CraftWorld) p.getWorld()).getHandle().addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
-                        p.sendMessage(ChatColor.GREEN + "Done!");
+                    if (args.length == 2) {
+                        double speed = Double.parseDouble(args[1]);
+                        PrzlabsDragon dragon = new PrzlabsDragon(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation(), speed);
+                        if (((CraftWorld) p.getWorld()).getHandle().addEntity(dragon, SpawnReason.CUSTOM)) {
+                            p.sendMessage(ChatColor.GREEN + "Done!");
+                        } else {
+                            p.sendMessage(ChatColor.RED + "Failure :(");
+                        }
                     } else {
-                        p.sendMessage(ChatColor.RED + "Failure :(");
+                        PrzlabsDragon dragon = new PrzlabsDragon(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
+                        if (((CraftWorld) p.getWorld()).getHandle().addEntity(dragon, SpawnReason.CUSTOM)) {
+                            p.sendMessage(ChatColor.GREEN + "Done!");
+                        } else {
+                            p.sendMessage(ChatColor.RED + "Failure :(");
+                        }
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("createblaze")) {
-                    Blaze dragon = new Blaze(((CraftWorld) p.getWorld()).getHandle(), true, p.getLocation());
-                    if (((CraftWorld) p.getWorld()).getHandle().addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
-                        p.sendMessage(ChatColor.GREEN + "Done!");
-                    } else {
-                        p.sendMessage(ChatColor.RED + "Failure :(");
-                    }
-                    return true;
-                }
-                if (args[0].equalsIgnoreCase("crystal")) {
-                    Crystal crystal = new Crystal(((CraftWorld) p.getWorld()).getHandle(), true);
+                } else if (args[0].equalsIgnoreCase("crystal")) {
+                    PrzlabsCrystal crystal = new PrzlabsCrystal(((CraftWorld) p.getWorld()).getHandle(), true);
                     crystal.setPosition(p.getLocation().getX(), p.getLocation().getY(), p.getLocation().getZ());
-                    if (((CraftWorld) p.getWorld()).getHandle().addEntity(crystal, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
+                    if (((CraftWorld) p.getWorld()).getHandle().addEntity(crystal, SpawnReason.CUSTOM)) {
                         p.sendMessage(ChatColor.GREEN + "Done!");
                     } else {
                         p.sendMessage(ChatColor.RED + "Failure :(");
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("ctrl")) {
-                    Entity focus = getEntity(p);
-                    if (focus != null) {
-                        focus.b(((CraftPlayer) p).getHandle(), 1);
+                } else if (args[0].equalsIgnoreCase("shinyballoon")) {
+                    PrzlabsRedBalloon crystal = new PrzlabsRedBalloon(p, ((CraftWorld) p.getWorld()).getHandle());
+                    crystal.setPosition(p.getLocation().getX(), p.getLocation().getY(), p.getLocation().getZ());
+                    if (((CraftWorld) p.getWorld()).getHandle().addEntity(crystal, SpawnReason.CUSTOM)) {
+                        p.sendMessage(ChatColor.GREEN + "Done!");
+                    } else {
+                        p.sendMessage(ChatColor.RED + "Failure :(");
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("select")) {
-                    Entity focus = getEntity(p);
+                } else if (args[0].equalsIgnoreCase("ctrl")) {
+                    performRightClick(p, 1);
+                    return true;
+                } else if (args[0].equalsIgnoreCase("ctrlrot")) {
+                    performRightClick(p, 7);
+                    return true;
+                } else if (args[0].equalsIgnoreCase("ctrlpos")) {
+                    performRightClick(p, 8);
+                    return true;
+                } else if (args[0].equalsIgnoreCase("select")) {
+                    Entity focus = getNearestEntity(p);
                     if (focus != null) {
                         selected.put(p.getName(), focus);
                         p.sendMessage(ChatColor.GOLD + "VoyageEntity selected");
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("add")) {
+                } else if (args[0].equalsIgnoreCase("add")) {
                     if (!selected.containsKey(p.getName())) {
                         p.sendMessage(ChatColor.RED + "Please select a dragon first!");
                     } else {
-                        ((Entity) selected.get(p.getName())).b(((CraftPlayer) p).getHandle(), 20);
+                        rightClickSelected(p, 20);
                         p.sendMessage(ChatColor.GRAY + "Point added");
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("kill")) {
+                } else if (args[0].equalsIgnoreCase("kill")) {
                     if (!selected.containsKey(p.getName())) {
                         p.sendMessage(ChatColor.RED + "Please select a dragon first!");
                     } else {
-                        ((Entity) selected.get(p.getName())).b(((CraftPlayer) p).getHandle(), 5);
-                        ((Entity) selected.get(p.getName())).b(((CraftPlayer) p).getHandle(), 21);
+                        rightClickSelected(p, 5);
+                        rightClickSelected(p, 21);
                         p.sendMessage(ChatColor.GRAY + "Entity removed");
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("editpath")) {
+                } else if (args[0].equalsIgnoreCase("editpath")) {
                     if (!selected.containsKey(p.getName())) {
                         p.sendMessage(ChatColor.RED + "Please select a dragon first!");
                     } else {
-                        ((Entity) selected.get(p.getName())).b(((CraftPlayer) p).getHandle(), 4);
-                        p.sendMessage(ChatColor.GRAY + "Path ready");
-                    }
-                }
-                if (args[0].equalsIgnoreCase("cleanpath")) {
-                    if (!selected.containsKey(p.getName())) {
-                        p.sendMessage(ChatColor.RED + "Please select a dragon first!");
-                    } else {
-                        ((Entity) selected.get(p.getName())).b(((CraftPlayer) p).getHandle(), 5);
+                        rightClickSelected(p, 4);
                         p.sendMessage(ChatColor.GRAY + "Path ready");
                     }
                     return true;
-                }
-                if (args[0].equalsIgnoreCase("demo")) {
+                } else if (args[0].equalsIgnoreCase("cleanpath")) {
                     if (!selected.containsKey(p.getName())) {
                         p.sendMessage(ChatColor.RED + "Please select a dragon first!");
                     } else {
-                        ((Entity) selected.get(p.getName())).b(((CraftPlayer) p).getHandle(), 6);
+                        rightClickSelected(p, 5);
+                        p.sendMessage(ChatColor.GRAY + "Path ready");
+                    }
+                    return true;
+                } else if (args[0].equalsIgnoreCase("demo")) {
+                    if (!selected.containsKey(p.getName())) {
+                        p.sendMessage(ChatColor.RED + "Please select a dragon first!");
+                    } else {
+                        rightClickSelected(p, 6);
+                    }
+                    return true;
+                } else if (args[0].equalsIgnoreCase("loadBackup")) {
+                    if (args.length == 2) {
+                        World world = Bukkit.getWorld(args[1]);
+                        if (world != null) {
+                            p.sendMessage(ChatColor.LIGHT_PURPLE + "Beginning...");
+                            VoyageData.loadVoyagersFromBackup(((CraftWorld) world).getHandle());
+                            p.sendMessage(ChatColor.DARK_PURPLE + "Finished!");
+                        } else {
+                            p.sendMessage(ChatColor.RED + "No world found by the name \"" + args[1] + "\"");
+                        }
+                    } else {
+                        p.sendMessage(ChatColor.LIGHT_PURPLE + "Beginning...");
+                        VoyageData.loadVoyagersFromBackup(null);
+                        p.sendMessage(ChatColor.DARK_PURPLE + "Finished!");
                     }
                     return true;
                 }
@@ -353,6 +401,21 @@ public class VoxelVoyage
         return false;
     }
 
-    public void onDisable() {
+    private void rightClickSelected(Player player, int action) {
+        Entity entity = selected.get(player.getName());
+
+        rightClickEntity(player, action, entity);
+    }
+
+    private void performRightClick(Player player, int action) {
+        Entity entity = getNearestEntity(player);
+
+        rightClickEntity(player, action, entity);
+    }
+
+    private void rightClickEntity(Player player, int action, Entity entity) {
+        if (entity != null && entity instanceof PrzlabsEntity) {
+            ((PrzlabsEntity) entity).rightClick(player, action);
+        }
     }
 }
