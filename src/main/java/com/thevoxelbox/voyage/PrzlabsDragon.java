@@ -1,81 +1,83 @@
 package com.thevoxelbox.voyage;
 
+import com.thevoxelbox.voyage.entity.BezierPoint;
+import net.minecraft.server.v1_12_R1.*;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.craftbukkit.v1_12_R1.entity.CraftEntity;
+import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
+
 import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
-import net.minecraft.server.EntityEnderDragon;
-import net.minecraft.server.EntityPlayer;
-import net.minecraft.server.NBTTagCompound;
-import net.minecraft.server.NBTTagDouble;
-import net.minecraft.server.NBTTagList;
-import net.minecraft.server.NPC;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.craftbukkit.entity.CraftPlayer;
-import org.bukkit.entity.Player;
-import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
-import org.bukkit.inventory.PlayerInventory;
+import static com.thevoxelbox.voyage.DragonAction.*;
+import static com.thevoxelbox.voyage.VoxelVoyage.VOYAGE_ENTITIES;
 
-
-public class PrzlabsDragon
-        extends EntityEnderDragon
-        implements PrzlabsEntity, NPC {
-    private ArrayList<BeziPoint> path = new ArrayList();
-    private BeziPoint[] currentCurve = new BeziPoint[0];
+public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, NPC {
+    private ArrayList<BezierPoint> path = new ArrayList<>();
+    private BezierPoint[] currentCurve = new BezierPoint[0];
     private int currentPoint = 1;
-    private double currT = 1.0D;
-    private double stepT = 0.1D;
+    private double currT = 1.0;
+    private double stepT = 0.1;
+    private double stepSpeed = 0.75;
     private Player focused;
     private String focusName;
-    private BeziPoint next;
-    private double lastDist = 9999999.0D;
+    private BezierPoint next;
+    private double lastDist = 9999999;
     private boolean motherEntity = false;
     private boolean pathEnd = false;
     private boolean controlled = false;
+    private boolean controllRot = false;
+    private boolean controllPos = false;
     private double motherx;
     private double mothery;
     private double motherz;
     private PrzlabsCrystal[] crystalPath;
-    private double distance = 12.0D;
+    private double distance = 12;
     private int lastSlot = 0;
     private boolean demo = false;
     private boolean sendDemos = false;
 
-    public PrzlabsDragon(net.minecraft.server.World world) {
+    public PrzlabsDragon(World world) {
         super(world);
     }
 
-    public PrzlabsDragon(net.minecraft.server.World world, boolean mother) {
+    public PrzlabsDragon(World world, boolean mother) {
         super(world);
-        this.motherEntity = mother;
-        if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-        } else {
-            VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
-            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+        motherEntity = mother;
+        storeVoyageEntity();
+    }
+
+    public PrzlabsDragon(World world, boolean mother, Location idle) {
+        this(world, mother, idle, 0.75, new ArrayList<>());
+    }
+
+    public PrzlabsDragon(World world, boolean mother, Location idle, double speed) {
+        this(world, mother, idle, speed, new ArrayList<>());
+    }
+
+    public PrzlabsDragon(World world, boolean mother, Location idle, double speed, ArrayList<BezierPoint> bezierPoints) {
+        super(world);
+        motherEntity = mother;
+        setPositionRotation(idle.getX(), idle.getY(), idle.getZ(), idle.getYaw() + 180, idle.getPitch());
+        motherx = idle.getX();
+        mothery = idle.getY();
+        motherz = idle.getZ();
+        stepSpeed = speed;
+        if (!bezierPoints.isEmpty()) {
+            setPath(bezierPoints);
         }
+        storeVoyageEntity();
+        VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
     }
 
-    public PrzlabsDragon(net.minecraft.server.World world, boolean mother, Location idle) {
+    public PrzlabsDragon(World world, ArrayList<BezierPoint> flightPath, Player pilot) {
         super(world);
-        this.motherEntity = mother;
-        setPositionRotation(idle.getX(), idle.getY(), idle.getZ(), idle.getYaw() + 180.0F, idle.getPitch());
-        this.motherx = idle.getX();
-        this.mothery = idle.getY();
-        this.motherz = idle.getZ();
-        if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-        } else {
-            VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
-            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-        }
-    }
-
-    public PrzlabsDragon(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, Player pilot) {
-        super(world);
-        if ((flightPath == null) || (flightPath.size() < 2)) {
+        if (flightPath == null || flightPath.size() < 2) {
+            VoxelVoyage.log.info("[VoxelVoyage] [5] Killing entity ID " + getUniqueID());
             die();
             return;
         }
@@ -83,448 +85,482 @@ public class PrzlabsDragon
             die();
             return;
         }
-        this.focused = pilot;
-        this.focusName = this.focused.getName();
-        VoxelVoyage.flying.add(this.focusName);
-        this.path = flightPath;
-        setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
-        this.currentCurve = new BeziPoint[]{(BeziPoint) this.path.get(0), (BeziPoint) this.path.get(1)};
-        getCC((BeziPoint) this.path.get(0));
+        focused = pilot;
+        focusName = focused.getName();
+        VoxelVoyage.flying.add(focusName);
+        path = flightPath;
+        setPosition(path.get(0).x, path.get(0).y, path.get(0).z);
+        currentCurve = new BezierPoint[]{path.get(0), path.get(1)};
+        getCC(path.get(0));
         getStep();
-        this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
-        this.yaw = getCorrectYaw(this.next.x, this.next.z);
+        next = BezierCurve.getBezier(stepT, currentCurve);
+        this.yaw = getCorrectYaw(next.x, next.z);
     }
 
-    public PrzlabsDragon(net.minecraft.server.World world, ArrayList<BeziPoint> flightPath, boolean demomode) {
-        /* 106 */
+    public PrzlabsDragon(World world, ArrayList<BezierPoint> flightPath, boolean demomode) {
         super(world);
-        /* 107 */
-        if ((flightPath == null) || (flightPath.size() < 2)) {
-            /* 109 */
+        if (flightPath == null || flightPath.size() < 2) {
+            VoxelVoyage.log.info("[VoxelVoyage] [5] Killing entity ID " + getUniqueID());
             die();
-            /* 110 */
             return;
         }
-        /* 112 */
-        this.demo = demomode;
-        /* 113 */
-        this.path = flightPath;
-        /* 114 */
-        setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
-        /* 115 */
-        this.currentCurve = new BeziPoint[]{(BeziPoint) this.path.get(0), (BeziPoint) this.path.get(1)};
-        /* 116 */
-        getCC((BeziPoint) this.path.get(0));
-        /* 117 */
+        demo = demomode;
+        path = flightPath;
+        setPosition(path.get(0).x, path.get(0).y, path.get(0).z);
+        currentCurve = new BezierPoint[]{path.get(0), path.get(1)};
+        getCC(path.get(0));
         getStep();
-        /* 118 */
-        this.next = BeziCurve.getBezi(0.003D, this.currentCurve);
-        /* 119 */
-        this.yaw = getCorrectYaw(this.next.x, this.next.z);
+        next = BezierCurve.getBezier(stepT, currentCurve);
+        this.yaw = getCorrectYaw(next.x, next.z);
     }
 
-    public org.bukkit.entity.Entity getBukkitEntity() {
-        /* 124 */
-        if (this.bukkitEntity == null) {
-            /* 125 */
-            this.bukkitEntity = new PrzlabsLivingEntity(this.world.getServer(), this);
+    private void storeVoyageEntity() {
+        if (VOYAGE_ENTITIES.containsKey(getBukkitEntity().getWorld().getUID())) {
+            VOYAGE_ENTITIES.get(getBukkitEntity().getWorld().getUID()).put(getUniqueID(), this);
+        } else {
+            VOYAGE_ENTITIES.put(getBukkitEntity().getWorld().getUID(), new TreeMap<>());
+            VOYAGE_ENTITIES.get(getBukkitEntity().getWorld().getUID()).put(getUniqueID(), this);
         }
-        /* 127 */
+    }
+
+    @Override
+    public CraftEntity getBukkitEntity() {
+        if (this.bukkitEntity == null) {
+            this.bukkitEntity = new UselessDragon(world.getServer(), this);
+        }
         return this.bukkitEntity;
     }
 
     private float getCorrectYaw(double targetx, double targetz) {
-        /* 131 */
-        if (this.locZ > targetz)
-            /* 132 */ return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz)));
-        /* 133 */
-        if (this.locZ < targetz) {
-            /* 134 */
-            return (float) -Math.toDegrees(Math.atan((this.locX - targetx) / (this.locZ - targetz))) + 180.0F;
+        if (locZ > targetz) {
+            return (float) -Math.toDegrees(Math.atan((locX - targetx) / (locZ - targetz)));
+        } else if (locZ < targetz) {
+            return (float) -Math.toDegrees(Math.atan((locX - targetx) / (locZ - targetz))) + 180;
+        } else {
+            return this.yaw;
         }
-        /* 136 */
-        return this.yaw;
     }
 
     private void getStep() {
-        /* 141 */
-        if (this.currentCurve.length > 2) {
-            /* 142 */
-            double cdist = 0.0D;
-            /* 143 */
-            BeziPoint lastbezi = this.currentCurve[0];
+        if (currentCurve.length > 2) {
+            double cdist = 0;
+            BezierPoint lastbezi = currentCurve[0];
 
-            /* 145 */
-            for (double tt = 0.0D; tt < 1.0D; tt += 0.01D) {
-                /* 146 */
-                BeziPoint newbezi = BeziCurve.getBezi(tt, this.currentCurve);
-                /* 147 */
-                cdist += Math.pow(Math.pow(newbezi.x - lastbezi.x, 2.0D) + Math.pow(newbezi.y - lastbezi.y, 2.0D) + Math.pow(newbezi.z - lastbezi.z, 2.0D), 0.5D);
-                /* 148 */
+            for (double tt = 0.0; tt < 1.0; tt += 0.01) {
+                BezierPoint newbezi = BezierCurve.getBezier(tt, currentCurve);
+                cdist += Math.pow(Math.pow(newbezi.x - lastbezi.x, 2) + Math.pow(newbezi.y - lastbezi.y, 2) + Math.pow(newbezi.z - lastbezi.z, 2), 0.5);
                 lastbezi = newbezi;
             }
-            /* 150 */
-            this.stepT = (0.75D / cdist);
-            /* 151 */
-            this.currT = this.stepT;
+            stepT = stepSpeed / cdist;
+            currT = stepT;
         }
     }
 
     private boolean switchPoint() {
-        /* 156 */
-        double currDist = Math.pow(Math.pow(this.locX - this.currentCurve[1].x, 2.0D) + Math.pow(this.locY - this.currentCurve[1].y, 2.0D) + Math.pow(this.locZ - this.currentCurve[1].z, 2.0D), 0.5D);
-        /* 157 */
-        if (currDist <= this.lastDist) {
-            /* 158 */
-            this.lastDist = currDist;
-            /* 159 */
+        double currDist = Math.pow(Math.pow(locX - currentCurve[1].x, 2) + Math.pow(locY - currentCurve[1].y, 2) + Math.pow(locZ - currentCurve[1].z, 2), 0.5);
+        if (currDist <= lastDist) {
+            lastDist = currDist;
             return true;
+        } else {
+            lastDist = 9999999;
+            return false;
         }
-        /* 161 */
-        this.lastDist = 9999999.0D;
-        /* 162 */
-        return false;
     }
 
-    private void getCC(BeziPoint currentbp) {
-        /* 167 */
-        if (this.currentPoint + 1 < this.path.size()) {
-            /* 168 */
-            this.currentCurve = new BeziPoint[]{currentbp, (BeziPoint) this.path.get(this.currentPoint), (BeziPoint) this.path.get(this.currentPoint + 1)};
-        } else
-            /* 170 */       this.pathEnd = true;
+    private void getCC(BezierPoint currentbp) {
+        if (currentPoint + 1 < path.size()) {
+            currentCurve = new BezierPoint[]{currentbp, path.get(currentPoint), path.get(currentPoint + 1)};
+        } else {
+            pathEnd = true;
+        }
     }
 
-    /* 173 */   private long lastDemo = 0L;
-    long lastSaved;
+    private long lastDemo = 0;
 
-    public void d() {
-        /* 177 */
-        if ((this.focused != null) && (!this.focused.isOnline())) {
-            /* 178 */
-            this.focused = null;
+    @Override
+    public void B_() { // or Y or B_
+//        VoxelVoyage.log.info("[VoxelVoyage] Tick " + getUniqueID());
+        if (focused != null && !focused.isOnline()) {
+            focused = null;
         }
-        /* 180 */
-        if ((this.motherEntity) && (!this.demo)) {
-            /* 181 */
-            if ((this.sendDemos) &&
-                    /* 182 */         (System.currentTimeMillis() - this.lastDemo > 4000L)) {
-                /* 183 */
-                this.lastDemo = System.currentTimeMillis();
-                /* 184 */
-                PrzlabsDragon dragon = new PrzlabsDragon(this.world, this.path, true);
-                /* 185 */
-                this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
+        if (motherEntity && !demo) {
+            if (sendDemos) {
+                if (System.currentTimeMillis() - lastDemo > 6000) {
+                    lastDemo = System.currentTimeMillis();
+                    PrzlabsDragon dragon = new PrzlabsDragon(world, path, true);
+                    world.addEntity(dragon, SpawnReason.CUSTOM);
+                }
             }
-
-            if (this.controlled) {
-                changeDistance(this.focused);
-                Location player_loc = this.focused.getLocation();
-                double rot_x = (player_loc.getYaw() + 90.0F) % 360.0F;
-                double rot_y = player_loc.getPitch() * -1.0F;
+            if (controlled) {
+                changeDistance(focused);
+                Location player_loc = focused.getLocation();
+                double rot_x = (player_loc.getYaw() + 90) % 360;
+                double rot_y = player_loc.getPitch() * -1;
                 double rot_ycos = Math.cos(Math.toRadians(rot_y));
                 double rot_ysin = Math.sin(Math.toRadians(rot_y));
                 double rot_xcos = Math.cos(Math.toRadians(rot_x));
                 double rot_xsin = Math.sin(Math.toRadians(rot_x));
 
-                double h_length = this.distance * rot_ycos;
-                double y_offset = this.distance * rot_ysin;
-                double x_offset = h_length * rot_xcos;
-                double z_offset = h_length * rot_xsin;
+                double h_length = (distance * rot_ycos);
+                double y_offset = (distance * rot_ysin);
+                double x_offset = (h_length * rot_xcos);
+                double z_offset = (h_length * rot_xsin);
 
                 double target_x = x_offset + player_loc.getX();
-                double target_y = y_offset + player_loc.getY() + 1.65D;
+                double target_y = y_offset + player_loc.getY() + 1.65;
                 double target_z = z_offset + player_loc.getZ();
                 setPosition(target_x, target_y, target_z);
                 this.yaw = getCorrectYaw(player_loc.getX(), player_loc.getZ());
-                this.motherx = target_x;
-                this.mothery = target_y;
-                this.motherz = target_z;
-                this.lastSaved = 0L;
-            } else {
-                setPosition(this.motherx, this.mothery, this.motherz);
-            }
-        } else if (((this.focused != null) && (this.focused.isOnline())) || (this.demo)) {
-            if ((this.passenger == null) && (!this.demo)) {
-                ((CraftPlayer) this.focused).getHandle().setPassengerOf(this);
-            }
-            if ((this.path != null) && (!this.path.isEmpty()) && (this.path.size() > 1)) {
-                setPosition(this.next.x, this.next.y, this.next.z);
-                if ((switchPoint()) || (this.pathEnd)) {
-                    this.next = BeziCurve.getBezi(this.currT, this.currentCurve);
-                    this.currT += this.stepT;
-                    if (this.currT > 1.0D) {
-                        if (this.focusName != null) {
-                            VoxelVoyage.flying.remove(this.focusName);
-                        }
+                motherx = target_x;
+                mothery = target_y;
+                motherz = target_z;
+            } else if (controllRot) {
+                this.yaw = getCorrectYaw(focused.getLocation().getX(), focused.getLocation().getZ());
+            } else if (controllPos) {
+                changeDistance(focused);
+                Location player_loc = focused.getLocation();
+                double rot_x = (player_loc.getYaw() + 90) % 360;
+                double rot_y = player_loc.getPitch() * -1;
+                double rot_ycos = Math.cos(Math.toRadians(rot_y));
+                double rot_ysin = Math.sin(Math.toRadians(rot_y));
+                double rot_xcos = Math.cos(Math.toRadians(rot_x));
+                double rot_xsin = Math.sin(Math.toRadians(rot_x));
 
-                        die();
-                    }
-                } else {
-                    getCC(this.next);
-                    if (!this.pathEnd) {
-                        getStep();
-                        this.currentPoint += 1;
-                        if (this.currentPoint == this.path.size()) {
-                            this.currentPoint = 1;
-                        }
-                    } else {
-                        this.next = BeziCurve.getBezi(this.currT, this.currentCurve);
-                        this.currT += this.stepT;
-                    }
-                }
-                this.yaw = getCorrectYaw(this.next.x, this.next.z);
-            } else {
-                if (this.focusName != null) {
-                    VoxelVoyage.flying.remove(this.focusName);
-                }
+                double h_length = (distance * rot_ycos);
+                double y_offset = (distance * rot_ysin);
+                double x_offset = (h_length * rot_xcos);
+                double z_offset = (h_length * rot_xsin);
 
-                die();
+                double target_x = x_offset + player_loc.getX();
+                double target_y = y_offset + player_loc.getY() + 1.65;
+                double target_z = z_offset + player_loc.getZ();
+                setPosition(target_x, target_y, target_z);
+                motherx = target_x;
+                mothery = target_y;
+                motherz = target_z;
+            } else {
+                setPosition(motherx, mothery, motherz);
             }
         } else {
-            if (this.focusName != null) {
-                VoxelVoyage.flying.remove(this.focusName);
+            if ((focused != null && focused.isOnline()) || demo) {
+                if ((passengers == null || passengers.isEmpty()) && !demo) {
+                    ((CraftPlayer) focused).getHandle().a(this, true);
+                }
+                if (path != null && !path.isEmpty() && path.size() > 1) {
+                    setPosition(next.x, next.y, next.z);
+                    if (switchPoint() || pathEnd) {
+                        next = BezierCurve.getBezier(currT, currentCurve);
+                        currT += stepT;
+                        if (currT > 1.0) {
+                            if (focusName != null) {
+                                VoxelVoyage.flying.remove(focusName);
+                            }
+                            die();
+                        }
+                    } else {
+                        getCC(next);
+                        if (!pathEnd) {
+                            getStep();
+                            currentPoint++;
+                            if (currentPoint == path.size()) {
+                                currentPoint = 1;
+                            }
+                        } else {
+                            next = BezierCurve.getBezier(currT, currentCurve);
+                            currT += stepT;
+                        }
+                    }
+                    this.yaw = getCorrectYaw(next.x, next.z);
+                } else {
+                    if (focusName != null) {
+                        VoxelVoyage.flying.remove(focusName);
+                    }
+                    die();
+                }
+            } else {
+                if (focusName != null) {
+                    VoxelVoyage.flying.remove(focusName);
+                }
+                die();
             }
-
-            die();
         }
     }
 
     private void changeDistance(Player user) {
-        int currentSlot = user.getInventory().getHeldItemSlot();
-        if (this.lastSlot == 0) {
-            if ((currentSlot != 0) && (currentSlot > 5)) {
-                this.distance += 1.0D;
-            } else if ((currentSlot != 0) && (currentSlot < 6)) {
-                this.distance -= 1.0D;
-            }
-        } else if (this.lastSlot == 8) {
-            if ((currentSlot != 8) && (currentSlot < 5)) {
-                this.distance -= 1.0D;
-            } else if ((currentSlot != 8) && (currentSlot > 4)) {
-                this.distance += 1.0D;
-            }
-        } else if (currentSlot < this.lastSlot) {
-            this.distance += 1.0D;
-        } else if (currentSlot > this.lastSlot) {
-            this.distance -= 1.0D;
+        if (user == null) {
+            return;
         }
-
-        this.lastSlot = currentSlot;
+        int currentSlot = user.getInventory().getHeldItemSlot();
+        if (lastSlot == 0) {
+            if (currentSlot != 0 && currentSlot > 5) {
+                distance++;
+            } else if (currentSlot != 0 && currentSlot < 6) {
+                distance--;
+            }
+        } else if (lastSlot == 8) {
+            if (currentSlot != 8 && currentSlot < 5) {
+                distance--;
+            } else if (currentSlot != 8 && currentSlot > 4) {
+                distance++;
+            }
+        } else {
+            if (currentSlot < lastSlot) {
+                distance++;
+            } else if (currentSlot > lastSlot) {
+                distance--;
+            }
+        }
+        lastSlot = currentSlot;
     }
 
-
+    @Override
     public void a(NBTTagCompound in) {
-        this.motherEntity = in.getBoolean("isMother");
-        if (this.motherEntity) {
-            if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-                ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
-            } else {
-                VoxelVoyage.entities.put(getBukkitEntity().getWorld().getUID(), new TreeMap());
-                ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).put(Integer.valueOf(this.id), this);
+        VoxelVoyage.log.info("[VoxelVoyage] Loading entity ID " + getUniqueID());
+        motherEntity = in.getBoolean("isMother");
+        if (motherEntity) {
+            storeVoyageEntity();
+            NBTTagList mpos = in.getList("Mother", 0);
+            if (in.hasKey("SpeedT")) {
+                stepSpeed = in.getDouble("SpeedT");
             }
-            NBTTagList mpos = in.getList("Mother");
-
-            if ((mpos != null) && (mpos.size() != 0)) {
-                this.motherx = ((NBTTagDouble) mpos.get(0)).data;
-                this.mothery = ((NBTTagDouble) mpos.get(1)).data;
-                this.motherz = ((NBTTagDouble) mpos.get(2)).data;
+            if (mpos != null && mpos.size() != 0) {
+                motherx = mpos.f(0);
+                mothery = mpos.f(1);
+                motherz = mpos.f(2);
             } else {
-                this.motherx = this.locX;
-                this.mothery = this.locY;
-                this.motherz = this.locZ;
+                motherx = locX;
+                mothery = locY;
+                motherz = locZ;
             }
 
-            NBTTagList lpath = in.getList("Path");
-            if ((lpath == null) || (lpath.size() == 0)) {
+            NBTTagList lpath = in.getList("Path", 0);
+            if (lpath == null || lpath.size() == 0) {
                 return;
             }
             for (int count = 0; count < lpath.size(); count++) {
-                NBTTagList dbl = (NBTTagList) lpath.get(count);
-                this.path.add(new BeziPoint(((NBTTagDouble) dbl.get(0)).data, ((NBTTagDouble) dbl.get(1)).data, ((NBTTagDouble) dbl.get(2)).data));
+                NBTTagList dbl = (NBTTagList) lpath.i(count);
+                path.add(new BezierPoint(dbl.f(0), dbl.f(1), dbl.f(2)));
             }
-            if (this.next == null) {
-                this.next = ((BeziPoint) this.path.get(0));
+            if (next == null) {
+                next = path.get(0);
             }
 
-            if (this.path.size() > 2) {
-                getCC(this.next);
+            if (path.size() > 2) {
+                getCC(next);
                 getStep();
-                setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
-                this.lastDist = 9999999.0D;
+                lastDist = 9999999;
             }
         } else {
+            VoxelVoyage.log.info("[VoxelVoyage] [1] Killing entity ID " + getUniqueID());
             die();
         }
     }
 
-
+    @Override
     public void b(NBTTagCompound out) {
-        out.setBoolean("isMother", this.motherEntity);
-        if (this.motherEntity) {
-            out.set("Mother", a(new double[]{this.motherx, this.mothery, this.motherz}));
-            if ((this.path == null) || (this.path.isEmpty())) {
+        VoxelVoyage.log.info("[VoxelVoyage] Saving entity ID " + getUniqueID());
+        out.setBoolean("isMother", motherEntity);
+        if (motherEntity) {
+            out.set("Mother", this.a(motherx, mothery, motherz));
+            out.setDouble("SpeedT", stepSpeed);
+            if (path == null || path.isEmpty()) {
                 return;
             }
             NBTTagList spath = new NBTTagList();
-            for (BeziPoint bezi : this.path) {
+            for (BezierPoint bezi : path) {
                 NBTTagList dbl = new NBTTagList();
-                dbl.add(new NBTTagDouble((String) null, bezi.x));
-                dbl.add(new NBTTagDouble((String) null, bezi.y));
-                dbl.add(new NBTTagDouble((String) null, bezi.z));
+                dbl.add(new NBTTagDouble(bezi.x));
+                dbl.add(new NBTTagDouble(bezi.y));
+                dbl.add(new NBTTagDouble(bezi.z));
                 spath.add(dbl);
             }
             out.set("Path", spath);
         }
     }
 
+    @Override
     public boolean isAlive() {
         return true;
     }
 
-    public int getMaxHealth() {
-        return 9999999;
-    }
-
+    @Override
     public void rightClick(Player user, int slot) {
-        if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
-            this.focused = user;
+        if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
+            focused = user;
         }
-        if (slot == 1) {
-            this.controlled = (!this.controlled);
-        } else if (slot == 20) {
+        if (slot == TOGGLE_CONTROL) {
+            toggleControll(user);
+        } else if (slot == ADD_POINT) {
             addPoint(user);
-        } else if (slot == 21) {
+        } else if (slot == REMOVE_VOYAGER_PATH) {
+            VoyageData.removeVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
             die();
-        } else if (slot == 3) {
+        } else if (slot == BEGIN_VOYAGE) {
             voyage(user);
-        } else if (slot == 4) {
+        } else if (slot == DRAW_VOYAGE_PATH) {
             drawPath();
-        } else if (slot == 5) {
+        } else if (slot == CLEAN_VOYAGE_PATH) {
             cleanPath();
-        } else if (slot == 6) {
+        } else if (slot == TOGGLE_DEMO) {
             toggleDemo(user);
+        } else if (slot == TOGGLE_ROTATION_CONTROL) {
+            toggleControllRot(user);
+        } else if (slot == TOGGLE_POSITION_CONTROL) {
+            toggleControllPos(user);
         }
     }
 
     public void toggleDemo(Player user) {
-        this.sendDemos = (!this.sendDemos);
-        user.sendMessage(ChatColor.GOLD + "Demo mode turned " + ChatColor.AQUA + (this.sendDemos ? "on" : "off"));
+        sendDemos = !sendDemos;
+        user.sendMessage(ChatColor.GOLD + "Demo mode turned " + ChatColor.AQUA + (sendDemos ? "on" : "off"));
     }
 
     public void toggleControll(Player user) {
-        if ((this.focused == null) || (this.focused.getUniqueId() != user.getUniqueId())) {
-
-            this.focused = user;
+        if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
+            focused = user;
         }
-        this.controlled = (!this.controlled);
-        this.distance = 12.0D;
+        controlled = !controlled;
+        controllRot = false;
+        controllPos = false;
+        distance = 12;
+        if (controlled) {
+            VoyageData.removeVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
+        } else {
+            VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
+        }
+    }
+
+    public void toggleControllRot(Player user) {
+        if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
+            focused = user;
+        }
+        controllRot = !controllRot;
+        controlled = false;
+        controllPos = false;
+        distance = 12;
+    }
+
+    public void toggleControllPos(Player user) {
+        if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
+            focused = user;
+        }
+        controllPos = !controllPos;
+        controlled = false;
+        controllRot = false;
+        distance = 12;
+        if (controllPos) {
+            VoyageData.removeVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
+        } else {
+            VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
+        }
     }
 
     public void voyage(Player user) {
-        PrzlabsDragon dragon = new PrzlabsDragon(this.world, this.path, user);
-        this.world.addEntity(dragon, CreatureSpawnEvent.SpawnReason.CUSTOM);
+        PrzlabsDragon dragon = new PrzlabsDragon(world, path, user);
+        world.addEntity(dragon, SpawnReason.CUSTOM);
     }
 
     public void addPoint(Player user) {
-
-        if (this.path == null) {
-            this.path = new ArrayList();
-            this.currentCurve = new BeziPoint[1];
+        if (path == null) {
+            path = new ArrayList<>();
+            currentCurve = new BezierPoint[1];
         }
-        this.path.add(new BeziPoint(user.getLocation()));
+        path.add(new BezierPoint(user.getLocation()));
 
-        this.currentPoint = 1;
+        currentPoint = 1;
 
-        if (this.next == null) {
-            this.next = ((BeziPoint) this.path.get(0));
+        if (next == null) {
+            next = path.get(0);
         }
 
-        if (this.path.size() > 2) {
-            getCC(this.next);
+        if (path.size() > 2) {
+            getCC(next);
             getStep();
-            setPosition(((BeziPoint) this.path.get(0)).x, ((BeziPoint) this.path.get(0)).y, ((BeziPoint) this.path.get(0)).z);
-            this.lastDist = 9999999.0D;
+            lastDist = 9999999;
         }
-        this.lastSaved = 0L;
+        VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
+    }
+
+    public void setPath(ArrayList<BezierPoint> points) {
+        path = points;
+
+        currentPoint = 1;
+
+        if (next == null) {
+            next = path.get(0);
+        }
+
+        if (path.size() > 2) {
+            getCC(next);
+            getStep();
+            lastDist = 9999999;
+        }
     }
 
     public void drawPath() {
-        if (this.crystalPath == null) {
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
-        } else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
-            for (PrzlabsCrystal plc : this.crystalPath) {
-                if (plc != null) {
-
+        if (crystalPath == null) {
+            crystalPath = new PrzlabsCrystal[path.size()];
+        } else {
+            if (crystalPath != null && crystalPath.length != 0) {
+                for (PrzlabsCrystal plc : crystalPath) {
+                    if (plc == null) {
+                        continue;
+                    }
                     plc.die();
                 }
+                crystalPath = new PrzlabsCrystal[path.size()];
             }
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
         }
-
-        if ((this.path == null) || (this.path.isEmpty())) {
+        if (path == null || path.isEmpty()) {
             return;
         }
-        for (int count = 0; count < this.path.size(); count++) {
-            PrzlabsCrystal crystal = new PrzlabsCrystal(this.world, (BeziPoint) this.path.get(count), count, this);
-            if (this.world.addEntity(crystal, CreatureSpawnEvent.SpawnReason.CUSTOM)) {
-                this.crystalPath[count] = crystal;
+        for (int count = 0; count < path.size(); count++) {
+            PrzlabsCrystal crystal = new PrzlabsCrystal(world, path.get(count), count, this);
+            if (world.addEntity(crystal, SpawnReason.CUSTOM)) {
+                crystalPath[count] = crystal;
             }
         }
     }
 
     public void cleanPath() {
-        if (this.crystalPath == null) {
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
-        } else if ((this.crystalPath != null) && (this.crystalPath.length != 0)) {
-            for (PrzlabsCrystal plc : this.crystalPath) {
-                if (plc != null) {
+        if (crystalPath == null) {
+            crystalPath = new PrzlabsCrystal[path.size()];
+        } else {
+            if (crystalPath != null && crystalPath.length != 0) {
+                for (PrzlabsCrystal plc : crystalPath) {
+                    if (plc == null) {
+                        continue;
+                    }
                     plc.die();
                 }
+                crystalPath = new PrzlabsCrystal[path.size()];
             }
-            this.crystalPath = new PrzlabsCrystal[this.path.size()];
         }
+        VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
     }
 
-
-    public void setCrystal(PrzlabsCrystal crystal, int index) {
-        this.crystalPath[index] = crystal;
-    }
-
+    @Override
     public void die() {
-        if (VoxelVoyage.entities.containsKey(getBukkitEntity().getWorld().getUID())) {
-            ((TreeMap) VoxelVoyage.entities.get(getBukkitEntity().getWorld().getUID())).remove(Integer.valueOf(this.id));
+        if (VOYAGE_ENTITIES.containsKey(getBukkitEntity().getWorld().getUID())) {
+            VOYAGE_ENTITIES.get(getBukkitEntity().getWorld().getUID()).remove(getUniqueID());
         }
         if (VoxelVoyage.selected.containsValue(this)) {
             String pname = null;
-            for (Map.Entry<String, net.minecraft.server.Entity> entr : VoxelVoyage.selected.entrySet()) {
-                if (((net.minecraft.server.Entity) entr.getValue()).id == this.id) {
-                    pname = (String) entr.getKey();
+            for (Entry<String, Entity> entr : VoxelVoyage.selected.entrySet()) {
+                if (entr.getValue().getUniqueID() == getUniqueID()) {
+                    pname = entr.getKey();
                 }
             }
             VoxelVoyage.selected.remove(pname);
         }
-        if ((!this.motherEntity) && (this.focusName != null)) {
-            VoxelVoyage.flying.remove(this.focusName);
+        if (!motherEntity && focusName != null) {
+            VoxelVoyage.flying.remove(focusName);
         }
         super.die();
     }
 
-    public int getEntID() {
-        return this.id;
-    }
-
+    @Override
     public int getAirTicks() {
-        return this.motherEntity ? 12347 : 12348;
-    }
-
-    public void b(net.minecraft.server.Entity entity, int index) {
-        if ((entity instanceof EntityPlayer)) {
-            EntityPlayer play = (EntityPlayer) entity;
-            org.bukkit.entity.Entity bplay = play.getBukkitEntity();
-            if ((bplay instanceof Player)) {
-                rightClick((Player) bplay, index);
-            }
-        }
+        return (motherEntity ? 12347 : 12348);
     }
 }

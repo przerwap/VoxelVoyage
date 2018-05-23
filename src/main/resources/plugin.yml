@@ -1,0 +1,10 @@
+name: VoxelVoyage
+main: com.thevoxelbox.voyage.VoxelVoyage
+version: 1.070
+website: http://www.voxelwiki.com/minecraft/VoxelVoyage
+author: przerwap, Rezel
+description: >
+             Flight paths!
+commands:
+  voyage:
+    description: VoxelVoyage command
