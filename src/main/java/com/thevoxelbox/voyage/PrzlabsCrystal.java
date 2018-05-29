@@ -1,7 +1,3 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package com.thevoxelbox.voyage;
 
 import net.minecraft.server.v1_12_R1.*;
@@ -9,20 +5,16 @@ import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-/**
- *
- * @author Voxel
- */
-public class PrzlabsCrystal extends EntityEnderCrystal implements PrzlabsEntity {
+import static java.lang.System.currentTimeMillis;
 
+public class PrzlabsCrystal extends EntityEnderCrystal implements PrzlabsEntity {
     private Player focus;
     private BezierPoint bezi;
-    private int index;
     private boolean controlled;
-    private PrzlabsEntity owner;
     private boolean decorative = false;
     private int message = 0;
     private String[] messages = new String[]{"Hello, I'm decorative!", "Pretty cool huh?", "Bet you can't float like this!", "I'm cooler than you."};
+    private long cooldown;
 
     public PrzlabsCrystal(World world) {
         super(world);
@@ -33,11 +25,9 @@ public class PrzlabsCrystal extends EntityEnderCrystal implements PrzlabsEntity 
         decorative = decor;
     }
 
-    public PrzlabsCrystal(World world, BezierPoint point, int count, PrzlabsEntity mother) {
+    public PrzlabsCrystal(World world, BezierPoint point) {
         super(world);
         bezi = point;
-        index = count;
-        owner = mother;
         setPosition(bezi.x, bezi.y, bezi.z);
     }
 
@@ -75,12 +65,9 @@ public class PrzlabsCrystal extends EntityEnderCrystal implements PrzlabsEntity 
             bezi.y = target_y;
             bezi.z = target_z;
             setPosition(target_x, target_y, target_z);
-            int i = MathHelper.floor(target_x * 32.0D);
-            int j = MathHelper.floor(target_y * 32.0D);
-            int k = MathHelper.floor(target_z * 32.0D);
-//            for (Object o : world.players) {
-//                ((EntityPlayer) o).netServerHandler.sendPacket(new Packet34EntityTeleport(id, i, j, k, (byte) 0, (byte) 0));
-//            }
+            for (Object o : world.players) {
+                ((EntityPlayer) o).playerConnection.sendPacket(new PacketPlayOutEntityTeleport(this));
+            }
         }
     }
 
@@ -91,12 +78,18 @@ public class PrzlabsCrystal extends EntityEnderCrystal implements PrzlabsEntity 
 
     @Override
     public void rightClick(Player user, int action) {
+        if (currentTimeMillis() - cooldown < 2000) {
+            return;
+        }
+        cooldown = currentTimeMillis();
+
         if (decorative) {
             user.sendMessage(ChatColor.AQUA + "[" + ChatColor.LIGHT_PURPLE + "CRYSTAL" + ChatColor.AQUA + "] " + ChatColor.GREEN + messages[message]);
             return;
         }
         if (focus == null || focus.getUniqueId() != user.getUniqueId()) {
             focus = user;
+            user.sendMessage(ChatColor.GOLD + "Crystal Focused");
         }
         controlled = !controlled;
     }

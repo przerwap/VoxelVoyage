@@ -13,8 +13,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
-import static com.thevoxelbox.voyage.DragonAction.BEGIN_VOYAGE;
-import static com.thevoxelbox.voyage.DragonAction.FOCUS_PLAYER;
+import static com.thevoxelbox.voyage.DragonAction.*;
 
 public class VPlayer implements Listener {
     @EventHandler
