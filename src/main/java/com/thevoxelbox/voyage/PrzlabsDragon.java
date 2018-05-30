@@ -177,7 +177,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
     private long lastDemo = 0;
 
     @Override
-    public void B_() { // or Y or B_
+    public void B_() {
 //        VoxelVoyage.log.info("[VoxelVoyage] Tick " + getUniqueID());
         if (focused != null && !focused.isOnline()) {
             focused = null;
@@ -318,7 +318,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         motherEntity = in.getBoolean("isMother");
         if (motherEntity) {
             storeVoyageEntity();
-            NBTTagList mpos = in.getList("Mother", 0);
+            NBTTagList mpos = in.getList("Mother", 6);
             if (in.hasKey("SpeedT")) {
                 stepSpeed = in.getDouble("SpeedT");
             }
@@ -332,7 +332,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
                 motherz = locZ;
             }
 
-            NBTTagList lpath = in.getList("Path", 0);
+            NBTTagList lpath = in.getList("Path", 9);
             if (lpath == null || lpath.size() == 0) {
                 return;
             }
@@ -388,7 +388,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
             focused = user;
         }
         if (slot == TOGGLE_CONTROL) {
-            toggleControll(user);
+            toggleControl(user);
         } else if (slot == ADD_POINT) {
             addPoint(user);
         } else if (slot == REMOVE_VOYAGER_PATH) {
@@ -403,9 +403,9 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         } else if (slot == TOGGLE_DEMO) {
             toggleDemo(user);
         } else if (slot == TOGGLE_ROTATION_CONTROL) {
-            toggleControllRot(user);
+            toggleControlRot(user);
         } else if (slot == TOGGLE_POSITION_CONTROL) {
-            toggleControllPos(user);
+            toggleControlPos(user);
         }
     }
 
@@ -414,7 +414,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         user.sendMessage(ChatColor.GOLD + "Demo mode turned " + ChatColor.AQUA + (sendDemos ? "on" : "off"));
     }
 
-    public void toggleControll(Player user) {
+    public void toggleControl(Player user) {
         if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
             focused = user;
         }
@@ -429,7 +429,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         }
     }
 
-    public void toggleControllRot(Player user) {
+    public void toggleControlRot(Player user) {
         if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
             focused = user;
         }
@@ -439,7 +439,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         distance = 12;
     }
 
-    public void toggleControllPos(Player user) {
+    public void toggleControlPos(Player user) {
         if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
             focused = user;
         }
@@ -514,7 +514,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
             return;
         }
         for (int count = 0; count < path.size(); count++) {
-            PrzlabsCrystal crystal = new PrzlabsCrystal(world, path.get(count), count, this);
+            PrzlabsCrystal crystal = new PrzlabsCrystal(world, path.get(count));
             if (world.addEntity(crystal, SpawnReason.CUSTOM)) {
                 crystalPath[count] = crystal;
             }
