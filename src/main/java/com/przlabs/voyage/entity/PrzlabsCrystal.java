@@ -1,5 +1,6 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.entity;
 
+import com.przlabs.voyage.domain.BezierPoint;
 import net.minecraft.server.v1_12_R1.*;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;

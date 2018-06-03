@@ -1,5 +1,9 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.entity;
 
+import com.przlabs.voyage.application.VoxelVoyage;
+import com.przlabs.voyage.domain.BezierCurve;
+import com.przlabs.voyage.domain.BezierPoint;
+import com.przlabs.voyage.domain.DragonAction;
 import net.minecraft.server.v1_12_R1.*;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -12,8 +16,7 @@ import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import static com.thevoxelbox.voyage.DragonAction.*;
-import static com.thevoxelbox.voyage.VoxelVoyage.VOYAGE_ENTITIES;
+import static com.przlabs.voyage.application.VoxelVoyage.VOYAGE_ENTITIES;
 
 public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, NPC {
     private ArrayList<BezierPoint> path = new ArrayList<>();
@@ -70,13 +73,12 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
             setPath(bezierPoints);
         }
         storeVoyageEntity();
-        VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
     }
 
     public PrzlabsDragon(World world, ArrayList<BezierPoint> flightPath, Player pilot) {
         super(world);
         if (flightPath == null || flightPath.size() < 2) {
-            VoxelVoyage.log.info("[VoxelVoyage] [5] Killing entity ID " + getUniqueID());
+            VoxelVoyage.LOGGER.info("[VoxelVoyage] [5] Killing entity ID " + getUniqueID());
             die();
             return;
         }
@@ -99,7 +101,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
     public PrzlabsDragon(World world, ArrayList<BezierPoint> flightPath, boolean demomode) {
         super(world);
         if (flightPath == null || flightPath.size() < 2) {
-            VoxelVoyage.log.info("[VoxelVoyage] [5] Killing entity ID " + getUniqueID());
+            VoxelVoyage.LOGGER.info("[VoxelVoyage] [5] Killing entity ID " + getUniqueID());
             die();
             return;
         }
@@ -314,7 +316,7 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
 
     @Override
     public void a(NBTTagCompound in) {
-        VoxelVoyage.log.info("[VoxelVoyage] Loading entity ID " + getUniqueID());
+        VoxelVoyage.LOGGER.info("[VoxelVoyage] Loading entity ID " + getUniqueID());
         motherEntity = in.getBoolean("isMother");
         if (motherEntity) {
             storeVoyageEntity();
@@ -350,14 +352,14 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
                 lastDist = 9999999;
             }
         } else {
-            VoxelVoyage.log.info("[VoxelVoyage] [1] Killing entity ID " + getUniqueID());
+            VoxelVoyage.LOGGER.info("[VoxelVoyage] [1] Killing entity ID " + getUniqueID());
             die();
         }
     }
 
     @Override
     public void b(NBTTagCompound out) {
-        VoxelVoyage.log.info("[VoxelVoyage] Saving entity ID " + getUniqueID());
+        VoxelVoyage.LOGGER.info("[VoxelVoyage] Saving entity ID " + getUniqueID());
         out.setBoolean("isMother", motherEntity);
         if (motherEntity) {
             out.set("Mother", this.a(motherx, mothery, motherz));
@@ -387,24 +389,23 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         if (focused == null || focused.getUniqueId() != user.getUniqueId()) {
             focused = user;
         }
-        if (slot == TOGGLE_CONTROL) {
+        if (slot == DragonAction.TOGGLE_CONTROL) {
             toggleControl(user);
-        } else if (slot == ADD_POINT) {
+        } else if (slot == DragonAction.ADD_POINT) {
             addPoint(user);
-        } else if (slot == REMOVE_VOYAGER_PATH) {
-            VoyageData.removeVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
+        } else if (slot == DragonAction.REMOVE_VOYAGER_PATH) {
             die();
-        } else if (slot == BEGIN_VOYAGE) {
+        } else if (slot == DragonAction.BEGIN_VOYAGE) {
             voyage(user);
-        } else if (slot == DRAW_VOYAGE_PATH) {
+        } else if (slot == DragonAction.DRAW_VOYAGE_PATH) {
             drawPath();
-        } else if (slot == CLEAN_VOYAGE_PATH) {
+        } else if (slot == DragonAction.CLEAN_VOYAGE_PATH) {
             cleanPath();
-        } else if (slot == TOGGLE_DEMO) {
+        } else if (slot == DragonAction.TOGGLE_DEMO) {
             toggleDemo(user);
-        } else if (slot == TOGGLE_ROTATION_CONTROL) {
+        } else if (slot == DragonAction.TOGGLE_ROTATION_CONTROL) {
             toggleControlRot(user);
-        } else if (slot == TOGGLE_POSITION_CONTROL) {
+        } else if (slot == DragonAction.TOGGLE_POSITION_CONTROL) {
             toggleControlPos(user);
         }
     }
@@ -422,11 +423,6 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         controllRot = false;
         controllPos = false;
         distance = 12;
-        if (controlled) {
-            VoyageData.removeVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
-        } else {
-            VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
-        }
     }
 
     public void toggleControlRot(Player user) {
@@ -447,11 +443,6 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
         controlled = false;
         controllRot = false;
         distance = 12;
-        if (controllPos) {
-            VoyageData.removeVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
-        } else {
-            VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
-        }
     }
 
     public void voyage(Player user) {
@@ -477,7 +468,6 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
             getStep();
             lastDist = 9999999;
         }
-        VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
     }
 
     public void setPath(ArrayList<BezierPoint> points) {
@@ -535,7 +525,6 @@ public class PrzlabsDragon extends EntityEnderDragon implements PrzlabsEntity, N
                 crystalPath = new PrzlabsCrystal[path.size()];
             }
         }
-        VoyageData.saveVoyagerPath(path, motherx, mothery, motherz, stepSpeed, world, VoyagerType.DRAGON);
     }
 
     @Override

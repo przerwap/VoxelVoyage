@@ -1,4 +1,4 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.entity;
 
 import net.minecraft.server.v1_12_R1.EntityEnderDragon;
 import org.bukkit.craftbukkit.v1_12_R1.CraftServer;

@@ -1,5 +1,8 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.listener;
 
+import com.przlabs.voyage.domain.DragonAction;
+import com.przlabs.voyage.application.VoxelVoyage;
+import com.przlabs.voyage.entity.PrzlabsEntity;
 import net.minecraft.server.v1_12_R1.Entity;
 import org.bukkit.ChatColor;
 import org.bukkit.Effect;
@@ -13,15 +16,13 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
-import static com.thevoxelbox.voyage.DragonAction.*;
-
-public class VPlayer implements Listener {
+public class PlayerInteractListener implements Listener {
     @EventHandler
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
         Entity entity = ((CraftEntity) event.getRightClicked()).getHandle();
         switch (entity.getAirTicks()) {
             case 12345:
-                rightClickEntity(event.getPlayer(), FOCUS_PLAYER, entity);
+                rightClickEntity(event.getPlayer(), DragonAction.FOCUS_PLAYER, entity);
                 break;
 
             case 12346:
@@ -29,7 +30,7 @@ public class VPlayer implements Listener {
                     event.getPlayer().sendMessage(ChatColor.GOLD + "You are not permitted to do this. Please input the password or login with an OP account.");
                     break;
                 }
-                rightClickEntity(event.getPlayer(), FOCUS_PLAYER, entity);
+                rightClickEntity(event.getPlayer(), DragonAction.FOCUS_PLAYER, entity);
                 break;
 
             default:
@@ -50,7 +51,7 @@ public class VPlayer implements Listener {
                         p.sendMessage(ChatColor.RED + "You may only travel on one entity at a time!");
                         return;
                     }
-                    rightClickEntity(p, BEGIN_VOYAGE, closest);
+                    rightClickEntity(p, DragonAction.BEGIN_VOYAGE, closest);
                 } else {
                     p.sendMessage(ChatColor.RED + "Your offering is rejected.");
                 }
@@ -106,7 +107,7 @@ public class VPlayer implements Listener {
         }
     }
 
-    public static int getSmokeDir(float yaw) { // 0 - west   90 - north   180 - east   270 - south
+    private int getSmokeDir(float yaw) { // 0 - west   90 - north   180 - east   270 - south
         if (yaw < 0) {
             yaw += 360;
         }

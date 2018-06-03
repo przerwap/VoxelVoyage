@@ -1,7 +1,7 @@
 name: VoxelVoyage
-main: com.thevoxelbox.voyage.VoxelVoyage
-version: 1.070
-website: http://www.voxelwiki.com/minecraft/VoxelVoyage
+main: com.przlabs.voyage.application.VoxelVoyage
+version: 1.1.0
+website: missing
 author: przerwap
 description: >
              Flight paths!

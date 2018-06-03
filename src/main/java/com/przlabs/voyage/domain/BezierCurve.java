@@ -1,4 +1,4 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.domain;
 
 public class BezierCurve {
     public static BezierPoint getBezier(double t, BezierPoint[] curve) {

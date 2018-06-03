@@ -1,4 +1,4 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.domain;
 
 public class DragonAction {
     public static final int TOGGLE_CONTROL = 1;
