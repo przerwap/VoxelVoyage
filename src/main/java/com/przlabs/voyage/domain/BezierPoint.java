@@ -1,4 +1,4 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.domain;
 
 import org.bukkit.Location;
 

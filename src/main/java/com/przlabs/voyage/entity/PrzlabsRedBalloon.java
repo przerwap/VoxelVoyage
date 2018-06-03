@@ -1,13 +1,14 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.entity;
 
 import net.minecraft.server.v1_12_R1.BlockPosition;
 import net.minecraft.server.v1_12_R1.EntityEnderSignal;
 import net.minecraft.server.v1_12_R1.NBTTagCompound;
 import net.minecraft.server.v1_12_R1.World;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-public class PrzlabsRedBalloon extends EntityEnderSignal {
+public class PrzlabsRedBalloon extends EntityEnderSignal implements PrzlabsEntity {
     private Player focus;
 
     public PrzlabsRedBalloon(World world) {
@@ -55,5 +56,10 @@ public class PrzlabsRedBalloon extends EntityEnderSignal {
     @Override
     public void a(NBTTagCompound in) {
         die();
+    }
+
+    @Override
+    public void rightClick(Player user, int slot) {
+        user.sendMessage(ChatColor.RED + "A red balloon");
     }
 }

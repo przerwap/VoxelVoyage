@@ -1,5 +1,11 @@
-package com.thevoxelbox.voyage;
+package com.przlabs.voyage.application;
 
+import com.przlabs.voyage.entity.PrzlabsCrystal;
+import com.przlabs.voyage.entity.PrzlabsDragon;
+import com.przlabs.voyage.entity.PrzlabsEntity;
+import com.przlabs.voyage.entity.PrzlabsRedBalloon;
+import com.przlabs.voyage.listener.EntityListener;
+import com.przlabs.voyage.listener.PlayerInteractListener;
 import net.minecraft.server.v1_12_R1.Entity;
 import net.minecraft.server.v1_12_R1.EntityTypes;
 import org.bukkit.Bukkit;
@@ -27,34 +33,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class VoxelVoyage extends JavaPlugin {
+    private static final Logger VOYAGE_LOGGER = Logger.getLogger(VoxelVoyage.class.getName());
 
-    static {
-        try {
-            EntityTypes et = EntityTypes.class.getConstructor().newInstance();
-
-            Method addEntity = EntityTypes.class.getDeclaredMethod("a", int.class, String.class, Class.class, String.class);
-
-            addEntity.setAccessible(true);
-
-            addEntity.invoke(et, 63, "przlabs_dragon", PrzlabsDragon.class, "PrzlabsDragon");
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity registered!");
-
-            addEntity.invoke(et, 200, "przlabs_crystal", PrzlabsCrystal.class, "PrzlabsCrystal");
-            System.out.println("[VoxelVoyage] PrzlabsCrystal entity registered!");
-
-            addEntity.invoke(et, 200, "przlabs_red_balloon", PrzlabsRedBalloon.class, "PrzlabsRedBalloon");
-        } catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException | IllegalArgumentException ex) {
-            System.out.println("[VoxelVoyage] PrzlabsDragon entity failed to register!");
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        }
-    }
-
-    protected static final Logger log = Logger.getLogger("Minecraft");
-    public static boolean SPAWN_ENTITIES = true;
-    private VPlayer plistener = new VPlayer();
-    private VEntity elistener = new VEntity();
+    public static final Logger LOGGER = Logger.getLogger("Minecraft");
     public static TreeMap<UUID, TreeMap<UUID, Entity>> VOYAGE_ENTITIES = new TreeMap<>();
     public static TreeMap<String, Entity> selected = new TreeMap<>();
     public static TreeSet<String> flying = new TreeSet<>();
@@ -62,6 +43,10 @@ public class VoxelVoyage extends JavaPlugin {
     public static String password;
     public static int voyageItem = 371;
     public static boolean forceSpawning = false;
+
+    static {
+        registerCustomEntitiesWithServer();
+    }
 
     public static Entity getNearestEntity(Player p) {
         if (!VOYAGE_ENTITIES.containsKey(p.getWorld().getUID())) {
@@ -118,24 +103,23 @@ public class VoxelVoyage extends JavaPlugin {
     public void onEnable() {
         loadProps();
 
-        for (World wrld : Bukkit.getWorlds()) {
-            CraftWorld cw = (CraftWorld) wrld;
-            for (Object o : cw.getHandle().entityList) {
-                Entity ent = (Entity) o;
-                switch (ent.getAirTicks()) {
+        for (World world : Bukkit.getWorlds()) {
+            CraftWorld craftWorld = (CraftWorld) world;
+            for (Entity entity : craftWorld.getHandle().entityList) {
+                switch (entity.getAirTicks()) {
                     case 12346:
-                        ent.die();
+                        entity.die();
                         break;
 
                     case 12347:
                     case 12348:
                     case 12349:
                     case 12350:
-                        if (!VOYAGE_ENTITIES.containsKey(wrld.getUID())) {
-                            VOYAGE_ENTITIES.put(wrld.getUID(), new TreeMap<>());
+                        if (!VOYAGE_ENTITIES.containsKey(world.getUID())) {
+                            VOYAGE_ENTITIES.put(world.getUID(), new TreeMap<>());
                         }
 
-                        VOYAGE_ENTITIES.get(wrld.getUID()).put(ent.getUniqueID(), ent);
+                        VOYAGE_ENTITIES.get(world.getUID()).put(entity.getUniqueID(), entity);
                         break;
 
                     default:
@@ -144,37 +128,11 @@ public class VoxelVoyage extends JavaPlugin {
             }
         }
 
-        Bukkit.getPluginManager().registerEvents(plistener, this);
-        Bukkit.getPluginManager().registerEvents(elistener, this);
-//        Bukkit.getPluginManager().registerEvent(Type.PLAYER_INTERACT_ENTITY, plistener, Priority.Normal, this);
-//        Bukkit.getPluginManager().registerEvent(Type.PLAYER_INTERACT, plistener, Priority.Normal, this);
-//        Bukkit.getPluginManager().registerEvent(Type.CREATURE_SPAWN, elistener, Priority.Lowest, this);
-
-/*        if (forceSpawning) {
-            try {
-                SimplePluginManager pm = (SimplePluginManager) Bukkit.getPluginManager();
-
-                Method getListen = SimplePluginManager.class.getDeclaredMethod("getEventListeners", new Class[]{Event.Type.class});
-
-                getListen.setAccessible(true);
-
-                Object sset = getListen.invoke(pm, new Object[]{Event.Type.CREATURE_SPAWN});
-                if (sset instanceof SortedSet) {
-                    SortedSet set = (SortedSet) sset;
-                    for (Object obj : set) {
-                        if (obj instanceof RegisteredListener) {
-                            RegisteredListener rl = (RegisteredListener) obj;
-                            log.info("[VoxelVoyage] Registered CREATURE_SPAWN listener: " + rl.getPlugin().getDescription().getFullName() + " priority: " + rl.getPriority().name());
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, e);
-            }
-        }*/
+        Bukkit.getPluginManager().registerEvents(new PlayerInteractListener(), this);
+        Bukkit.getPluginManager().registerEvents(new EntityListener(), this);
 
         PluginDescriptionFile pdfFile = this.getDescription();
-        log.info(pdfFile.getName() + " version " + pdfFile.getVersion() + " is enabled! Let's fly.");
+        LOGGER.info(pdfFile.getName() + " version " + pdfFile.getVersion() + " is enabled! Let's fly.");
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -186,14 +144,14 @@ public class VoxelVoyage extends JavaPlugin {
                 f.createNewFile();
                 saveProps();
             } catch (IOException ex) {
-                Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
+                VOYAGE_LOGGER.log(Level.SEVERE, null, ex);
             }
         }
         Properties prop = new Properties();
         try {
             prop.load(new FileReader(f));
         } catch (IOException ex) {
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
+            VOYAGE_LOGGER.log(Level.SEVERE, null, ex);
         }
         password = prop.getProperty("Password", null);
         if (password != null && password.equalsIgnoreCase("null")) {
@@ -211,7 +169,7 @@ public class VoxelVoyage extends JavaPlugin {
             try {
                 f.createNewFile();
             } catch (IOException ex) {
-                Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
+                VOYAGE_LOGGER.log(Level.SEVERE, null, ex);
             }
         }
         Properties prop = new Properties();
@@ -221,7 +179,7 @@ public class VoxelVoyage extends JavaPlugin {
         try {
             prop.store(new PrintWriter(f), null);
         } catch (IOException ex) {
-            Logger.getLogger(VoxelVoyage.class.getName()).log(Level.SEVERE, null, ex);
+            VOYAGE_LOGGER.log(Level.SEVERE, null, ex);
         }
     }
 
@@ -376,22 +334,6 @@ public class VoxelVoyage extends JavaPlugin {
                         rightClickSelected(p, 6);
                     }
                     return true;
-                } else if (args[0].equalsIgnoreCase("loadBackup")) {
-                    if (args.length == 2) {
-                        World world = Bukkit.getWorld(args[1]);
-                        if (world != null) {
-                            p.sendMessage(ChatColor.LIGHT_PURPLE + "Beginning...");
-                            VoyageData.loadVoyagersFromBackup(((CraftWorld) world).getHandle());
-                            p.sendMessage(ChatColor.DARK_PURPLE + "Finished!");
-                        } else {
-                            p.sendMessage(ChatColor.RED + "No world found by the name \"" + args[1] + "\"");
-                        }
-                    } else {
-                        p.sendMessage(ChatColor.LIGHT_PURPLE + "Beginning...");
-                        VoyageData.loadVoyagersFromBackup(null);
-                        p.sendMessage(ChatColor.DARK_PURPLE + "Finished!");
-                    }
-                    return true;
                 }
             } else {
                 p.sendMessage(ChatColor.GOLD + "You are not permitted to use this command. Please input the password or login with an OP account.");
@@ -417,5 +359,33 @@ public class VoxelVoyage extends JavaPlugin {
         if (entity != null && entity instanceof PrzlabsEntity) {
             ((PrzlabsEntity) entity).rightClick(player, action);
         }
+    }
+
+    private static void registerCustomEntitiesWithServer() {
+        try {
+            EntityTypes et = EntityTypes.class.getConstructor().newInstance();
+            Method addEntity = EntityTypes.class.getDeclaredMethod("a", int.class, String.class, Class.class, String.class);
+            addEntity.setAccessible(true);
+
+            registerCustomEntity(et, addEntity, 63, "przlabs_dragon", PrzlabsDragon.class, "PrzlabsDragon");
+            registerCustomEntity(et, addEntity, 200, "przlabs_crystal", PrzlabsCrystal.class, "PrzlabsCrystal");
+            registerCustomEntity(et, addEntity, 200, "przlabs_red_balloon", PrzlabsRedBalloon.class, "PrzlabsRedBalloon");
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException | IllegalArgumentException ex) {
+            VOYAGE_LOGGER.log(Level.SEVERE, "[VoxelVoyage] PrzlabsDragon entity failed to register!", ex);
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void registerCustomEntity(
+            EntityTypes entityTypes,
+            Method addEntity,
+            int entityId,
+            String entityKey,
+            Class<? extends PrzlabsEntity> entityClass,
+            String entityName) throws IllegalAccessException, InvocationTargetException {
+        addEntity.invoke(entityTypes, entityId, entityKey, entityClass, entityName);
+
+        VOYAGE_LOGGER.log(Level.INFO, "[VoxelVoyage] {0} entity registered!", entityName);
     }
 }
